@@ -1,0 +1,258 @@
+openapi: 3.0.3
+info:
+  title: 蔵書登録 API
+  description: 蔵書登録機能のAPI仕様
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000/api
+    description: 開発環境
+
+paths:
+  /books:
+    post:
+      summary: 蔵書を登録
+      description: |
+        新規蔵書をシステムに登録する。
+        認証済みの職員のみ実行可能。
+      operationId: createBook
+      tags:
+        - Books
+      security:
+        - sanctum: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookRequest'
+            example:
+              title: プログラミング入門
+              author: 山田太郎
+              isbn: '9784123456789'
+              publisher: 技術出版社
+              published_year: 2024
+              genre: 技術書
+      responses:
+        '201':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '401':
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+
+  /books/check-isbn:
+    get:
+      summary: ISBN重複チェック
+      description: |
+        指定されたISBNが既に登録されているかをチェックする。
+        フォーム入力時のリアルタイムバリデーションに使用。
+        認証済みの職員のみ実行可能。
+      operationId: checkIsbnDuplicate
+      tags:
+        - Books
+      security:
+        - sanctum: []
+      parameters:
+        - name: isbn
+          in: query
+          required: true
+          description: チェック対象のISBN（ハイフンなし）
+          schema:
+            type: string
+            pattern: '^(97[89]\d{10}|\d{9}[\dX])$'
+          example: '9784123456789'
+      responses:
+        '200':
+          description: チェック結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IsbnCheckResponse'
+        '401':
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: バリデーションエラー（ISBN形式不正）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+
+  /books/{id}:
+    get:
+      summary: 蔵書詳細を取得
+      description: 指定されたIDの蔵書情報を取得する。
+      operationId: getBook
+      tags:
+        - Books
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 蔵書ID（ULID形式）
+          schema:
+            type: string
+            pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'
+          example: '01HXYZ1234567890ABCDEFGHIJ'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '404':
+          description: 蔵書が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    sanctum:
+      type: apiKey
+      in: cookie
+      name: laravel_session
+      description: Laravel Sanctum によるセッション認証
+
+  schemas:
+    CreateBookRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: 書籍タイトル（必須）
+        author:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: 著者名
+        isbn:
+          type: string
+          pattern: '^(97[89]\d{10}|\d{9}[\dX])$'
+          nullable: true
+          description: ISBN（ハイフンなし、ISBN-10またはISBN-13）
+        publisher:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: 出版社名
+        published_year:
+          type: integer
+          minimum: 1000
+          nullable: true
+          description: 出版年（西暦4桁）
+        genre:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: ジャンル
+
+    Book:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'
+          description: 蔵書ID（ULID形式）
+        title:
+          type: string
+          description: 書籍タイトル
+        author:
+          type: string
+          nullable: true
+          description: 著者名
+        isbn:
+          type: string
+          nullable: true
+          description: ISBN（ハイフンなし）
+        publisher:
+          type: string
+          nullable: true
+          description: 出版社名
+        published_year:
+          type: integer
+          nullable: true
+          description: 出版年
+        genre:
+          type: string
+          nullable: true
+          description: ジャンル
+        status:
+          type: string
+          enum:
+            - available
+            - borrowed
+            - reserved
+          description: 貸出状態
+        registered_by:
+          type: string
+          nullable: true
+          description: 登録者ID（ULID形式）
+        registered_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 登録日時（ISO 8601形式）
+
+    IsbnCheckResponse:
+      type: object
+      required:
+        - exists
+        - count
+      properties:
+        exists:
+          type: boolean
+          description: 同一ISBNの蔵書が存在するか
+        count:
+          type: integer
+          minimum: 0
+          description: 同一ISBNの蔵書数
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: フィールドごとのバリデーションエラー

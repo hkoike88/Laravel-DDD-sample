@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_quotation_process" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.0.0">
+  <bpmn:collaboration id="Collaboration_QuotationProcess">
+    <bpmn:participant id="Participant_SalesRep" name="営業担当" processRef="Process_QuotationProcess" />
+    <bpmn:participant id="Participant_SalesManager" name="営業マネージャー" processRef="Process_ApprovalProcess" />
+    <bpmn:participant id="Participant_Accounting" name="経理担当" processRef="Process_RecordingProcess" />
+    <bpmn:participant id="Participant_Customer" name="顧客" />
+    <bpmn:participant id="Participant_ERPSystem" name="ERPシステム" />
+
+    <bpmn:messageFlow id="Flow_CustomerRequest" sourceRef="Participant_Customer" targetRef="Event_ReceiveRequest" />
+    <bpmn:messageFlow id="Flow_ApprovalRequest" sourceRef="Task_RequestApproval" targetRef="Event_ReceiveApprovalRequest" />
+    <bpmn:messageFlow id="Flow_ApprovalResult" sourceRef="Gateway_ApprovalDecision" targetRef="Event_ReceiveApprovalResult" />
+    <bpmn:messageFlow id="Flow_SendQuotation" sourceRef="Task_SendQuotation" targetRef="Participant_Customer" />
+    <bpmn:messageFlow id="Flow_ERPQuery" sourceRef="Task_GetCustomerInfo" targetRef="Participant_ERPSystem" />
+    <bpmn:messageFlow id="Flow_ERPResponse" sourceRef="Participant_ERPSystem" targetRef="Task_GetCustomerInfo" />
+  </bpmn:collaboration>
+
+  <!-- 営業担当のプロセス -->
+  <bpmn:process id="Process_QuotationProcess" name="見積書作成プロセス" isExecutable="true">
+    <bpmn:startEvent id="Event_ReceiveRequest" name="見積依頼受付">
+      <bpmn:outgoing>Flow_ToGetCustomer</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="Task_GetCustomerInfo" name="顧客情報取得" camunda:type="external" camunda:topic="getCustomerInfo">
+      <bpmn:incoming>Flow_ToGetCustomer</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToGetProduct</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_GetProductInfo" name="商品情報取得" camunda:type="external" camunda:topic="getProductInfo">
+      <bpmn:incoming>Flow_ToGetProduct</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCreateQuotation</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="Task_CreateQuotation" name="見積書作成" camunda:assignee="${salesRep}">
+      <bpmn:documentation>
+        見積書の明細を入力し、金額を計算します。
+        - 商品、数量、単価を入力
+        - 小計、消費税、合計を自動計算
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_ToCreateQuotation</bpmn:incoming>
+      <bpmn:incoming>Flow_Revision</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToRequestApproval</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:sendTask id="Task_RequestApproval" name="承認依頼送信" camunda:type="external" camunda:topic="sendApprovalRequest">
+      <bpmn:incoming>Flow_ToRequestApproval</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToWaitApproval</bpmn:outgoing>
+    </bpmn:sendTask>
+
+    <bpmn:intermediateCatchEvent id="Event_ReceiveApprovalResult" name="承認結果受信">
+      <bpmn:incoming>Flow_ToWaitApproval</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCheckApproval</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_ApprovalResult" messageRef="Message_ApprovalResult" />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:exclusiveGateway id="Gateway_CheckApprovalResult" name="承認結果確認">
+      <bpmn:incoming>Flow_ToCheckApproval</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sendTask id="Task_SendQuotation" name="見積書送付" camunda:type="external" camunda:topic="sendQuotation">
+      <bpmn:documentation>
+        承認済みの見積書をPDF化して顧客にメール送信します。
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_Approved</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:sendTask>
+
+    <bpmn:userTask id="Task_ReviseQuotation" name="見積書修正" camunda:assignee="${salesRep}">
+      <bpmn:documentation>
+        マネージャーからのフィードバックに基づき見積書を修正します。
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_Rejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_Revision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="Event_QuotationSent" name="見積書送付完了">
+      <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ToGetCustomer" sourceRef="Event_ReceiveRequest" targetRef="Task_GetCustomerInfo" />
+    <bpmn:sequenceFlow id="Flow_ToGetProduct" sourceRef="Task_GetCustomerInfo" targetRef="Task_GetProductInfo" />
+    <bpmn:sequenceFlow id="Flow_ToCreateQuotation" sourceRef="Task_GetProductInfo" targetRef="Task_CreateQuotation" />
+    <bpmn:sequenceFlow id="Flow_ToRequestApproval" sourceRef="Task_CreateQuotation" targetRef="Task_RequestApproval" />
+    <bpmn:sequenceFlow id="Flow_ToWaitApproval" sourceRef="Task_RequestApproval" targetRef="Event_ReceiveApprovalResult" />
+    <bpmn:sequenceFlow id="Flow_ToCheckApproval" sourceRef="Event_ReceiveApprovalResult" targetRef="Gateway_CheckApprovalResult" />
+    <bpmn:sequenceFlow id="Flow_Approved" name="承認" sourceRef="Gateway_CheckApprovalResult" targetRef="Task_SendQuotation">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Rejected" name="差し戻し" sourceRef="Gateway_CheckApprovalResult" targetRef="Task_ReviseQuotation">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Revision" sourceRef="Task_ReviseQuotation" targetRef="Task_CreateQuotation" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_SendQuotation" targetRef="Event_QuotationSent" />
+  </bpmn:process>
+
+  <!-- 営業マネージャーの承認プロセス -->
+  <bpmn:process id="Process_ApprovalProcess" name="承認プロセス" isExecutable="true">
+    <bpmn:startEvent id="Event_ReceiveApprovalRequest" name="承認依頼受信">
+      <bpmn:outgoing>Flow_ToReview</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_ReviewQuotation" name="見積内容確認" camunda:assignee="${salesManager}" camunda:candidateGroups="managers">
+      <bpmn:documentation>
+        見積書の内容を確認します:
+        - 価格の妥当性
+        - 値引率の妥当性
+        - 納期の実現可能性
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_ToReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_ApprovalDecision" name="承認判断">
+      <bpmn:incoming>Flow_ToDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approve</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Reject</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_SendApproval" name="承認通知送信" camunda:type="external" camunda:topic="sendApproval">
+      <bpmn:incoming>Flow_Approve</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovalEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_SendRejection" name="差し戻し通知送信" camunda:type="external" camunda:topic="sendRejection">
+      <bpmn:incoming>Flow_Reject</bpmn:incoming>
+      <bpmn:outgoing>Flow_RejectionEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="Event_ApprovalComplete" name="承認完了">
+      <bpmn:incoming>Flow_ApprovalEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="Event_RejectionComplete" name="差し戻し完了">
+      <bpmn:incoming>Flow_RejectionEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ToReview" sourceRef="Event_ReceiveApprovalRequest" targetRef="Task_ReviewQuotation" />
+    <bpmn:sequenceFlow id="Flow_ToDecision" sourceRef="Task_ReviewQuotation" targetRef="Gateway_ApprovalDecision" />
+    <bpmn:sequenceFlow id="Flow_Approve" name="承認" sourceRef="Gateway_ApprovalDecision" targetRef="Task_SendApproval">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Reject" name="差し戻し" sourceRef="Gateway_ApprovalDecision" targetRef="Task_SendRejection">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ApprovalEnd" sourceRef="Task_SendApproval" targetRef="Event_ApprovalComplete" />
+    <bpmn:sequenceFlow id="Flow_RejectionEnd" sourceRef="Task_SendRejection" targetRef="Event_RejectionComplete" />
+  </bpmn:process>
+
+  <!-- 経理担当の記録プロセス -->
+  <bpmn:process id="Process_RecordingProcess" name="記録プロセス" isExecutable="true">
+    <bpmn:startEvent id="Event_QuotationSentNotification" name="見積書送付通知受信">
+      <bpmn:outgoing>Flow_ToRecord</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="Task_RecordInERP" name="ERP記録" camunda:type="external" camunda:topic="recordInERP">
+      <bpmn:documentation>
+        見積書情報をERPシステムに記録します。
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_ToRecord</bpmn:incoming>
+      <bpmn:outgoing>Flow_RecordEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="Event_RecordComplete" name="記録完了">
+      <bpmn:incoming>Flow_RecordEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ToRecord" sourceRef="Event_QuotationSentNotification" targetRef="Task_RecordInERP" />
+    <bpmn:sequenceFlow id="Flow_RecordEnd" sourceRef="Task_RecordInERP" targetRef="Event_RecordComplete" />
+  </bpmn:process>
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Message_ApprovalResult" name="Message_ApprovalResult" />
+
+  <!-- Diagram -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_QuotationProcess">
+      <!-- Diagram elements would be placed here by a visual modeler -->
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

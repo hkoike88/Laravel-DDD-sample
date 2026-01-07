@@ -1,0 +1,103 @@
+# OpenAPI Contract: Logout API
+# Feature: 001-staff-logout
+# Date: 2026-01-06
+#
+# Note: この API は既に実装済みです。
+#       本ドキュメントは参照用の仕様記録です。
+
+openapi: 3.0.3
+info:
+  title: Staff Logout API
+  version: 1.0.0
+  description: 職員ログアウト API
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+
+paths:
+  /api/auth/logout:
+    post:
+      summary: 職員ログアウト
+      description: |
+        認証済み職員のセッションを終了し、ログアウト処理を実行する。
+
+        処理内容:
+        1. 認証ガードからのログアウト
+        2. セッションの無効化
+        3. CSRFトークンの再生成
+      operationId: logout
+      tags:
+        - Authentication
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      responses:
+        '200':
+          description: ログアウト成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+              example:
+                message: "ログアウトしました"
+        '401':
+          description: 未認証（セッション切れ、未ログイン）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedError'
+              example:
+                message: "Unauthenticated."
+        '419':
+          description: CSRFトークン無効
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfError'
+              example:
+                message: "CSRF token mismatch."
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: laravel_session
+      description: Laravel セッション Cookie
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-XSRF-TOKEN
+      description: CSRF トークン（Cookie から取得）
+
+  schemas:
+    LogoutResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: ログアウト完了メッセージ
+          example: "ログアウトしました"
+
+    UnauthorizedError:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+          example: "Unauthenticated."
+
+    CsrfError:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: CSRFエラーメッセージ
+          example: "CSRF token mismatch."

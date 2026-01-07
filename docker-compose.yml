@@ -1,0 +1,121 @@
+# ===================================
+# Docker Compose 開発環境設定
+# ===================================
+# 使用方法:
+#   起動: docker compose up -d
+#   停止: docker compose down
+#   ログ: docker compose logs -f
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local
+
+services:
+  # ===================================
+  # データベース (MySQL 8.0)
+  # ===================================
+  db:
+    image: mysql:8.0
+    container_name: laravel-ddd-library-db
+    restart: unless-stopped
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-library}
+      MYSQL_USER: ${DB_USERNAME:-library}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-secret}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ===================================
+  # フロントエンド (Vite + React)
+  # ===================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: laravel-ddd-library-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - app-network
+
+  # ===================================
+  # バックエンド (PHP-FPM + Laravel)
+  # ===================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: laravel-ddd-library-backend
+    restart: unless-stopped
+    expose:
+      - "9000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-library}
+      DB_USERNAME: ${DB_USERNAME:-library}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      APP_ENV: local
+      APP_DEBUG: "true"
+    volumes:
+      - ./backend:/var/www/html
+    networks:
+      - app-network
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ===================================
+  # phpMyAdmin (データベース管理)
+  # ===================================
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: laravel-ddd-library-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "${PHPMYADMIN_PORT:-8080}:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    networks:
+      - app-network
+    depends_on:
+      db:
+        condition: service_started
+
+  # ===================================
+  # Nginx (リバースプロキシ + FastCGI)
+  # ===================================
+  nginx:
+    image: nginx:alpine
+    container_name: laravel-ddd-library-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./infrastructure/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./backend:/var/www/html:ro
+    networks:
+      - app-network
+    depends_on:
+      - frontend
+      - backend

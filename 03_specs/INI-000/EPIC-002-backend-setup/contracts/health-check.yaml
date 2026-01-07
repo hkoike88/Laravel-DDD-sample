@@ -1,0 +1,80 @@
+openapi: 3.0.3
+info:
+  title: Backend Setup - Health Check API
+  description: バックエンド初期設定で作成されるヘルスチェック API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost/api
+    description: Local development server
+
+paths:
+  /health:
+    get:
+      summary: ヘルスチェック
+      description: バックエンドサービスの稼働状態を確認
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: サービス正常稼働
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2025-12-23T10:00:00Z"
+                  laravel_version:
+                    type: string
+                    example: "11.0.0"
+                required:
+                  - status
+                  - timestamp
+
+  /health/db:
+    get:
+      summary: データベース接続確認
+      description: MySQL データベースへの接続状態を確認
+      operationId: healthCheckDb
+      tags:
+        - Health
+      responses:
+        '200':
+          description: データベース接続正常
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  connection:
+                    type: string
+                    example: "mysql"
+                  database:
+                    type: string
+                    example: "library"
+                required:
+                  - status
+                  - connection
+        '503':
+          description: データベース接続失敗
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Database connection failed"

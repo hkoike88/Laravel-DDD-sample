@@ -1,0 +1,206 @@
+openapi: 3.0.3
+info:
+  title: セッション管理 API
+  description: |
+    セッション管理機能に関連する API 仕様。
+    本機能はセッションのライフサイクル管理（タイムアウト、同時ログイン制限）を提供する。
+
+    ## セッション管理の動作
+
+    - アイドルタイムアウト: 30分間操作がないとセッションが失効
+    - 絶対タイムアウト: ログインから8時間経過でセッションが強制失効
+    - 同時ログイン制限: 一般職員3台、管理者1台
+
+    ## エラーレスポンス
+
+    セッション失効時は 401 Unauthorized を返し、フロントエンドでログイン画面へリダイレクト。
+  version: 1.0.0
+  contact:
+    name: Library System Team
+
+servers:
+  - url: /api/staff
+    description: 職員向け API
+
+paths:
+  /auth/login:
+    post:
+      summary: 職員ログイン
+      description: |
+        メールアドレスとパスワードで認証し、セッションを開始する。
+        同時ログイン数の上限を超える場合、最古のセッションが自動的に終了される。
+      tags:
+        - 認証
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+          headers:
+            Set-Cookie:
+              description: セッションCookie（HttpOnly, Secure, SameSite=Lax）
+              schema:
+                type: string
+        '401':
+          description: 認証失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+
+  /auth/logout:
+    post:
+      summary: 職員ログアウト
+      description: 現在のセッションを終了し、セッションCookieを削除する。
+      tags:
+        - 認証
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: ログアウト成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: ログアウトしました
+        '401':
+          description: 未認証（セッション切れ）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionExpiredResponse'
+
+  /auth/me:
+    get:
+      summary: 現在のユーザー情報取得
+      description: |
+        認証済みの職員情報を取得する。
+        セッションが有効な場合のみ成功する。
+      tags:
+        - 認証
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffResponse'
+        '401':
+          description: 未認証（セッション切れ）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionExpiredResponse'
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: library_session
+      description: セッションCookie（Laravel セッション）
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: メールアドレス
+          example: staff@library.example.com
+        password:
+          type: string
+          format: password
+          description: パスワード
+          minLength: 8
+          example: password123
+
+    LoginResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: 成功メッセージ
+          example: ログインに成功しました
+        staff:
+          $ref: '#/components/schemas/StaffResponse'
+
+    StaffResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 職員ID（ULID）
+          example: 01HXYZ1234567890ABCDEFGH
+        email:
+          type: string
+          format: email
+          description: メールアドレス
+          example: staff@library.example.com
+        name:
+          type: string
+          description: 職員名
+          example: 山田太郎
+        is_admin:
+          type: boolean
+          description: 管理者フラグ
+          example: false
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+          example: メールアドレスまたはパスワードが正しくありません
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: バリデーションエラーメッセージ
+          example: 入力内容に問題があります
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            email:
+              - メールアドレスは必須です
+            password:
+              - パスワードは8文字以上で入力してください
+
+    SessionExpiredResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: セッション切れメッセージ
+          example: セッションがタイムアウトしました。再度ログインしてください

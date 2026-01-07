@@ -1,0 +1,224 @@
+openapi: 3.1.0
+info:
+  title: 認証 API
+  description: 職員認証 API - Laravel Sanctum SPA 認証
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000/api
+    description: 開発環境
+
+tags:
+  - name: Authentication
+    description: 認証関連エンドポイント
+
+paths:
+  /sanctum/csrf-cookie:
+    get:
+      tags:
+        - Authentication
+      summary: CSRF トークン取得
+      description: |
+        SPA 認証の前に CSRF トークンを取得する。
+        レスポンスとして XSRF-TOKEN クッキーが設定される。
+      operationId: getCsrfCookie
+      responses:
+        '204':
+          description: CSRF クッキー設定成功
+          headers:
+            Set-Cookie:
+              description: XSRF-TOKEN クッキー
+              schema:
+                type: string
+                example: XSRF-TOKEN=eyJpdiI6...; Path=/; Secure; HttpOnly; SameSite=Lax
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: ログイン
+      description: |
+        メールアドレスとパスワードで認証を行う。
+        成功時はセッションが確立され、職員情報が返却される。
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffResponse'
+        '401':
+          description: 認証失敗（メールアドレスまたはパスワードが不正）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: 認証情報が正しくありません
+        '403':
+          description: アカウントがロックされている
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: アカウントがロックされています
+        '422':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '429':
+          description: レート制限超過（5回/分）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Too Many Requests
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: ログアウト
+      description: |
+        現在のセッションを無効化してログアウトする。
+      operationId: logout
+      security:
+        - sanctumAuth: []
+      responses:
+        '200':
+          description: ログアウト成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: ログアウトしました
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Unauthenticated.
+
+  /auth/user:
+    get:
+      tags:
+        - Authentication
+      summary: 認証ユーザー情報取得
+      description: |
+        現在ログイン中の職員情報を取得する。
+      operationId: getCurrentUser
+      security:
+        - sanctumAuth: []
+      responses:
+        '200':
+          description: 職員情報取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffResponse'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Unauthenticated.
+
+components:
+  securitySchemes:
+    sanctumAuth:
+      type: apiKey
+      in: cookie
+      name: laravel_session
+      description: Laravel Sanctum セッションベース認証
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: メールアドレス
+          example: staff@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: パスワード
+          example: password123
+
+    StaffResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'
+              description: 職員ID（ULID形式）
+              example: 01HXYZ1234567890ABCDEFGHIJ
+            name:
+              type: string
+              maxLength: 100
+              description: 職員名
+              example: 山田太郎
+            email:
+              type: string
+              format: email
+              maxLength: 255
+              description: メールアドレス
+              example: staff@example.com
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: メッセージ
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+          example: The given data was invalid.
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            email:
+              - メールアドレスを入力してください
+            password:
+              - パスワードを入力してください

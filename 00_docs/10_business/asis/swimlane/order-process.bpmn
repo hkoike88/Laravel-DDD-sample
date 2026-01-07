@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_order_process" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.0.0">
+  <bpmn:collaboration id="Collaboration_OrderProcess">
+    <bpmn:participant id="Participant_Sales" name="営業部門" processRef="Process_OrderProcessing" />
+    <bpmn:participant id="Participant_Warehouse" name="倉庫部門" processRef="Process_InventoryAllocation" />
+    <bpmn:participant id="Participant_Shipping" name="出荷部門" processRef="Process_Shipping" />
+    <bpmn:participant id="Participant_Customer" name="顧客" />
+    <bpmn:participant id="Participant_ERPSystem" name="ERPシステム" />
+
+    <bpmn:messageFlow id="Flow_OrderReceived" sourceRef="Participant_Customer" targetRef="Event_OrderReceived" />
+    <bpmn:messageFlow id="Flow_InventoryRequest" sourceRef="Task_CreateOrder" targetRef="Event_AllocationRequest" />
+    <bpmn:messageFlow id="Flow_AllocationResult" sourceRef="Gateway_InventoryAvailable" targetRef="Event_AllocationResult" />
+    <bpmn:messageFlow id="Flow_ShippingInstruction" sourceRef="Task_ConfirmOrder" targetRef="Event_ShippingInstruction" />
+    <bpmn:messageFlow id="Flow_ShipmentNotification" sourceRef="Task_Ship" targetRef="Participant_Customer" />
+    <bpmn:messageFlow id="Flow_ERPUpdate" sourceRef="Task_CreateOrder" targetRef="Participant_ERPSystem" />
+  </bpmn:collaboration>
+
+  <!-- 営業部門の受注処理プロセス -->
+  <bpmn:process id="Process_OrderProcessing" name="受注処理プロセス" isExecutable="true">
+    <bpmn:startEvent id="Event_OrderReceived" name="注文受信">
+      <bpmn:documentation>
+        顧客からの注文を受信します。
+        ソース: メール、Web、電話等
+      </bpmn:documentation>
+      <bpmn:outgoing>Flow_ToValidateOrder</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_ValidateOrder" name="注文内容確認" camunda:assignee="${salesRep}">
+      <bpmn:documentation>
+        注文内容を確認します:
+        - 顧客情報の正確性
+        - 商品・数量の確認
+        - 納期の実現可能性
+        - 価格の妥当性
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_ToValidateOrder</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToValidateGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_ValidateOrder" name="注文内容OK?">
+      <bpmn:incoming>Flow_ToValidateGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Valid</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Invalid</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_NotifyCustomer" name="顧客に確認依頼" camunda:type="external" camunda:topic="notifyCustomer">
+      <bpmn:documentation>
+        注文内容に不備がある場合、顧客に確認を依頼します。
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_Invalid</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToWaitCorrection</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:intermediateCatchEvent id="Event_CorrectionReceived" name="訂正内容受信">
+      <bpmn:incoming>Flow_ToWaitCorrection</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToRevalidate</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_Correction" />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:serviceTask id="Task_CreateOrder" name="受注データ作成" camunda:type="external" camunda:topic="createOrder">
+      <bpmn:documentation>
+        受注データをERPシステムに登録します。
+        - 受注番号の採番
+        - 顧客情報の登録
+        - 明細情報の登録
+        - 納期の設定
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_Valid</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToWaitAllocation</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:intermediateCatchEvent id="Event_AllocationResult" name="在庫引当結果受信">
+      <bpmn:incoming>Flow_ToWaitAllocation</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCheckAllocation</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_AllocationResult" />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:exclusiveGateway id="Gateway_AllocationResult" name="在庫引当OK?">
+      <bpmn:incoming>Flow_ToCheckAllocation</bpmn:incoming>
+      <bpmn:outgoing>Flow_AllocationOK</bpmn:outgoing>
+      <bpmn:outgoing>Flow_AllocationNG</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_HandleShortage" name="欠品対応" camunda:assignee="${salesRep}">
+      <bpmn:documentation>
+        在庫不足の場合の対応:
+        - 代替商品の提案
+        - 分納の提案
+        - 納期延長の交渉
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_AllocationNG</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToShortageGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_ShortageHandled" name="対応完了?">
+      <bpmn:incoming>Flow_ToShortageGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Resolved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Cancelled</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_ConfirmOrder" name="受注確定" camunda:type="external" camunda:topic="confirmOrder">
+      <bpmn:documentation>
+        受注を確定し、出荷指示を送信します。
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_AllocationOK</bpmn:incoming>
+      <bpmn:incoming>Flow_Resolved</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_CancelOrder" name="注文キャンセル" camunda:type="external" camunda:topic="cancelOrder">
+      <bpmn:incoming>Flow_Cancelled</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCancelEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="Event_OrderConfirmed" name="受注確定完了">
+      <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="Event_OrderCancelled" name="注文キャンセル">
+      <bpmn:incoming>Flow_ToCancelEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ToValidateOrder" sourceRef="Event_OrderReceived" targetRef="Task_ValidateOrder" />
+    <bpmn:sequenceFlow id="Flow_ToValidateGateway" sourceRef="Task_ValidateOrder" targetRef="Gateway_ValidateOrder" />
+    <bpmn:sequenceFlow id="Flow_Valid" name="OK" sourceRef="Gateway_ValidateOrder" targetRef="Task_CreateOrder">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${valid == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Invalid" name="NG" sourceRef="Gateway_ValidateOrder" targetRef="Task_NotifyCustomer">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${valid == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToWaitCorrection" sourceRef="Task_NotifyCustomer" targetRef="Event_CorrectionReceived" />
+    <bpmn:sequenceFlow id="Flow_ToRevalidate" sourceRef="Event_CorrectionReceived" targetRef="Task_ValidateOrder" />
+    <bpmn:sequenceFlow id="Flow_ToWaitAllocation" sourceRef="Task_CreateOrder" targetRef="Event_AllocationResult" />
+    <bpmn:sequenceFlow id="Flow_ToCheckAllocation" sourceRef="Event_AllocationResult" targetRef="Gateway_AllocationResult" />
+    <bpmn:sequenceFlow id="Flow_AllocationOK" name="OK" sourceRef="Gateway_AllocationResult" targetRef="Task_ConfirmOrder">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${allocated == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_AllocationNG" name="NG" sourceRef="Gateway_AllocationResult" targetRef="Task_HandleShortage">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${allocated == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToShortageGateway" sourceRef="Task_HandleShortage" targetRef="Gateway_ShortageHandled" />
+    <bpmn:sequenceFlow id="Flow_Resolved" name="解決" sourceRef="Gateway_ShortageHandled" targetRef="Task_ConfirmOrder">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${resolved == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Cancelled" name="キャンセル" sourceRef="Gateway_ShortageHandled" targetRef="Task_CancelOrder">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${cancelled == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_ConfirmOrder" targetRef="Event_OrderConfirmed" />
+    <bpmn:sequenceFlow id="Flow_ToCancelEnd" sourceRef="Task_CancelOrder" targetRef="Event_OrderCancelled" />
+  </bpmn:process>
+
+  <!-- 倉庫部門の在庫引当プロセス -->
+  <bpmn:process id="Process_InventoryAllocation" name="在庫引当プロセス" isExecutable="true">
+    <bpmn:startEvent id="Event_AllocationRequest" name="引当依頼受信">
+      <bpmn:outgoing>Flow_ToCheckInventory</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="Task_CheckInventory" name="在庫確認" camunda:type="external" camunda:topic="checkInventory">
+      <bpmn:documentation>
+        在庫システムで在庫数を確認します。
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_ToCheckInventory</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToInventoryGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_InventoryAvailable" name="在庫あり?">
+      <bpmn:incoming>Flow_ToInventoryGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Available</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Unavailable</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_AllocateInventory" name="在庫引当実行" camunda:type="external" camunda:topic="allocateInventory">
+      <bpmn:documentation>
+        在庫を引き当てます（予約状態に変更）。
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_Available</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAllocationSuccess</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_NotifyShortage" name="欠品通知" camunda:type="external" camunda:topic="notifyShortage">
+      <bpmn:incoming>Flow_Unavailable</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAllocationFailure</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="Event_AllocationSuccess" name="引当完了">
+      <bpmn:incoming>Flow_ToAllocationSuccess</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="Event_AllocationFailure" name="引当失敗">
+      <bpmn:incoming>Flow_ToAllocationFailure</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ToCheckInventory" sourceRef="Event_AllocationRequest" targetRef="Task_CheckInventory" />
+    <bpmn:sequenceFlow id="Flow_ToInventoryGateway" sourceRef="Task_CheckInventory" targetRef="Gateway_InventoryAvailable" />
+    <bpmn:sequenceFlow id="Flow_Available" name="あり" sourceRef="Gateway_InventoryAvailable" targetRef="Task_AllocateInventory">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${inventoryAvailable == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Unavailable" name="なし" sourceRef="Gateway_InventoryAvailable" targetRef="Task_NotifyShortage">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${inventoryAvailable == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToAllocationSuccess" sourceRef="Task_AllocateInventory" targetRef="Event_AllocationSuccess" />
+    <bpmn:sequenceFlow id="Flow_ToAllocationFailure" sourceRef="Task_NotifyShortage" targetRef="Event_AllocationFailure" />
+  </bpmn:process>
+
+  <!-- 出荷部門の出荷プロセス -->
+  <bpmn:process id="Process_Shipping" name="出荷プロセス" isExecutable="true">
+    <bpmn:startEvent id="Event_ShippingInstruction" name="出荷指示受信">
+      <bpmn:outgoing>Flow_ToPick</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_PickItems" name="ピッキング" camunda:assignee="${warehouseWorker}">
+      <bpmn:documentation>
+        倉庫から商品をピッキングします。
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_ToPick</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToPack</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_PackItems" name="梱包" camunda:assignee="${packingWorker}">
+      <bpmn:documentation>
+        商品を梱包し、配送伝票を作成します。
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_ToPack</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToShip</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:serviceTask id="Task_Ship" name="出荷" camunda:type="external" camunda:topic="ship">
+      <bpmn:documentation>
+        配送業者に引き渡し、追跡番号を取得します。
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_ToShip</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToUpdateStatus</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_UpdateStatus" name="ステータス更新" camunda:type="external" camunda:topic="updateShippingStatus">
+      <bpmn:documentation>
+        ERPシステムで出荷ステータスを更新します。
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_ToUpdateStatus</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToShippingEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="Event_ShippingComplete" name="出荷完了">
+      <bpmn:incoming>Flow_ToShippingEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ToPick" sourceRef="Event_ShippingInstruction" targetRef="Task_PickItems" />
+    <bpmn:sequenceFlow id="Flow_ToPack" sourceRef="Task_PickItems" targetRef="Task_PackItems" />
+    <bpmn:sequenceFlow id="Flow_ToShip" sourceRef="Task_PackItems" targetRef="Task_Ship" />
+    <bpmn:sequenceFlow id="Flow_ToUpdateStatus" sourceRef="Task_Ship" targetRef="Task_UpdateStatus" />
+    <bpmn:sequenceFlow id="Flow_ToShippingEnd" sourceRef="Task_UpdateStatus" targetRef="Event_ShippingComplete" />
+  </bpmn:process>
+
+  <!-- Diagram -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_OrderProcess">
+      <!-- Diagram elements would be placed here by a visual modeler -->
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

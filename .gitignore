@@ -1,0 +1,178 @@
+# ===================================
+# Universal / OS
+# ===================================
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+*~
+
+# ===================================
+# IDEs
+# ===================================
+.vscode/
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+*.ipr
+*.iws
+*.sublime-project
+*.sublime-workspace
+
+# ===================================
+# Logs
+# ===================================
+*.log
+logs/
+*.log.*
+
+# ===================================
+# Environment Variables
+# ===================================
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ===================================
+# AI Tools (Claude Code, Serena, etc.)
+# ===================================
+.claude
+.serena
+.specify
+
+# ===================================
+# Frontend (Node.js/React/TypeScript)
+# ===================================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/.nuxt/
+node_modules/
+dist/
+build/
+.cache/
+
+# npm/yarn
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm/
+.yarn/
+# 注意: package-lock.json, yarn.lock はコミットすべき（依存関係の再現性のため）
+
+# Environment
+frontend/.env.local
+frontend/.env.*.local
+
+# Test coverage
+frontend/coverage/
+frontend/.nyc_output/
+
+# ===================================
+# Docker
+# ===================================
+# Volume data
+db_data/
+mysql_data/
+
+# Container logs
+#docker-compose.override.yml
+
+# ===================================
+# Chrome Debug (Dev Tools Testing)
+# ===================================
+/tmp/chrome-debug-*
+chrome-debug.log
+.chrome-debug/
+
+# ===================================
+# Database
+# ===================================
+*.sql.gz
+*.db
+*.sqlite
+*.sqlite3
+
+# ===================================
+# Terraform (Infrastructure)
+# ===================================
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+.terraform.lock.hcl
+terraform.tfplan
+crash.log
+
+# ===================================
+# Certificates & Keys
+# ===================================
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+
+# ===================================
+# Backup & Temp files
+# ===================================
+*.bak
+*.backup
+*.orig
+*~
+.*.swp
+
+# ===================================
+# Documentation Build
+# ===================================
+docs/_build/
+site/
+
+# ===================================
+# Kubernetes
+# ===================================
+# Secrets (NEVER commit these)
+k8s/**/*secret*.yaml
+k8s/**/secrets/
+!k8s/**/*secret*.yaml.example
+
+# Temporary kubeconfig
+.kube/
+kubeconfig*
+!kubeconfig.example
+
+# Helm (if used)
+charts/**/charts/
+charts/**/*.tgz
+
+# Temporary kubectl output
+kubectl-*.log
+k8s-temp/
+
+# ===================================
+# PHP / Laravel
+# ===================================
+backend/vendor/
+backend/storage/*.key
+backend/storage/logs/
+backend/bootstrap/cache/
+backend/.phpunit.result.cache
+backend/.php-cs-fixer.cache
+backend/phpstan.cache/
+*.cache
+
+# ===================================
+# Project Specific
+# ===================================
+# Security scan reports
+backend/reports/security/
+frontend/reports/security/
+reports/security/
+99_reviews/*

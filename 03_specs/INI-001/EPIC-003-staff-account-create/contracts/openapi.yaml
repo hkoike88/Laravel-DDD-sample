@@ -1,0 +1,357 @@
+openapi: 3.0.3
+info:
+  title: 職員アカウント管理 API
+  description: 職員アカウントの作成と一覧取得を提供する API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000/api
+    description: 開発環境
+
+paths:
+  /staff/accounts:
+    get:
+      summary: 職員一覧取得
+      description: |
+        登録済みの職員一覧をページネーション形式で取得する。
+        管理者のみがアクセス可能。
+      operationId: getStaffList
+      tags:
+        - staff-accounts
+      security:
+        - sanctum: []
+      parameters:
+        - name: page
+          in: query
+          description: ページ番号（1始まり）
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: 職員一覧取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffListResponse'
+        '401':
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: AUTH_UNAUTHENTICATED
+                  message: 認証が必要です
+        '403':
+          description: 権限エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: AUTHZ_PERMISSION_DENIED
+                  message: この操作を行う権限がありません
+
+    post:
+      summary: 職員アカウント作成
+      description: |
+        新しい職員アカウントを作成する。
+        管理者のみがアクセス可能。
+        初期パスワードは自動生成される。
+      operationId: createStaff
+      tags:
+        - staff-accounts
+      security:
+        - sanctum: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStaffRequest'
+      responses:
+        '201':
+          description: 職員アカウント作成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateStaffResponse'
+        '401':
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: AUTH_UNAUTHENTICATED
+                  message: 認証が必要です
+        '403':
+          description: 権限エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: AUTHZ_PERMISSION_DENIED
+                  message: この操作を行う権限がありません
+        '422':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+
+components:
+  securitySchemes:
+    sanctum:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Laravel Sanctum によるセッション認証
+
+  schemas:
+    # リクエスト
+    CreateStaffRequest:
+      type: object
+      required:
+        - name
+        - email
+        - role
+      properties:
+        name:
+          type: string
+          maxLength: 50
+          description: 職員名
+          example: 田中 花子
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: メールアドレス（一意）
+          example: tanaka@example.com
+        role:
+          type: string
+          enum:
+            - staff
+            - admin
+          description: 権限（staff=一般職員, admin=管理者）
+          example: staff
+
+    # レスポンス
+    StaffListResponse:
+      type: object
+      required:
+        - data
+        - meta
+        - links
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffListItem'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+
+    StaffListItem:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - role
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: 職員ID（ULID）
+          example: 01HV...
+        name:
+          type: string
+          description: 職員名
+          example: 田中 花子
+        email:
+          type: string
+          format: email
+          description: メールアドレス
+          example: tanaka@example.com
+        role:
+          type: string
+          enum:
+            - staff
+            - admin
+          description: 権限
+          example: staff
+        createdAt:
+          type: string
+          format: date-time
+          description: 作成日時（ISO 8601）
+          example: '2026-01-06T10:00:00+09:00'
+
+    PaginationMeta:
+      type: object
+      required:
+        - currentPage
+        - lastPage
+        - perPage
+        - total
+        - from
+        - to
+      properties:
+        currentPage:
+          type: integer
+          description: 現在のページ番号
+          example: 1
+        lastPage:
+          type: integer
+          description: 最終ページ番号
+          example: 5
+        perPage:
+          type: integer
+          description: 1ページあたりの件数
+          example: 20
+        total:
+          type: integer
+          description: 総件数
+          example: 100
+        from:
+          type: integer
+          nullable: true
+          description: 現在のページの開始レコード番号
+          example: 1
+        to:
+          type: integer
+          nullable: true
+          description: 現在のページの終了レコード番号
+          example: 20
+
+    PaginationLinks:
+      type: object
+      required:
+        - first
+        - last
+        - prev
+        - next
+      properties:
+        first:
+          type: string
+          nullable: true
+          description: 最初のページへのURL
+          example: 'http://localhost:8000/api/staff/accounts?page=1'
+        last:
+          type: string
+          nullable: true
+          description: 最後のページへのURL
+          example: 'http://localhost:8000/api/staff/accounts?page=5'
+        prev:
+          type: string
+          nullable: true
+          description: 前のページへのURL
+          example: null
+        next:
+          type: string
+          nullable: true
+          description: 次のページへのURL
+          example: 'http://localhost:8000/api/staff/accounts?page=2'
+
+    CreateStaffResponse:
+      type: object
+      required:
+        - message
+        - staff
+        - temporaryPassword
+      properties:
+        message:
+          type: string
+          description: 成功メッセージ
+          example: 職員アカウントを作成しました
+        staff:
+          $ref: '#/components/schemas/StaffListItem'
+        temporaryPassword:
+          type: string
+          description: 自動生成された初期パスワード（この場面でのみ表示）
+          example: Abc123!@#xyz1234
+
+    # エラーレスポンス（標準形式）
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              description: エラーコード
+              example: AUTH_UNAUTHENTICATED
+            message:
+              type: string
+              description: ユーザー向けエラーメッセージ
+              example: 認証が必要です
+            details:
+              type: array
+              items:
+                type: object
+              description: 追加のエラー詳細（オプション）
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+            - details
+          properties:
+            code:
+              type: string
+              description: エラーコード
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              description: エラーメッセージ
+              example: 入力内容に誤りがあります
+            details:
+              type: array
+              items:
+                $ref: '#/components/schemas/ValidationErrorDetail'
+              description: フィールドごとのエラー詳細
+
+    ValidationErrorDetail:
+      type: object
+      required:
+        - field
+        - code
+        - message
+      properties:
+        field:
+          type: string
+          description: エラーが発生したフィールド名
+          example: email
+        code:
+          type: string
+          description: バリデーションエラーコード
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          description: エラーメッセージ
+          example: このメールアドレスは既に登録されています
+
+tags:
+  - name: staff-accounts
+    description: 職員アカウント管理

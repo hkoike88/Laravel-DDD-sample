@@ -1,0 +1,16 @@
+# ===================================
+# Docker Compose 開発環境オーバーライド設定
+# ===================================
+# 使用方法:
+#   起動: docker compose -f docker-compose.yml -f docker-compose.develop.yml up -d
+#   停止: docker compose -f docker-compose.yml -f docker-compose.develop.yml down
+#
+# 目的:
+#   開発環境固有の設定を本番用設定から分離する
+
+services:
+  backend:
+    volumes:
+      # フロントエンドソースを読み取り専用でマウント
+      # バックエンドテストからフロントエンドの設定を検証するために使用
+      - ./frontend:/var/www/frontend:ro

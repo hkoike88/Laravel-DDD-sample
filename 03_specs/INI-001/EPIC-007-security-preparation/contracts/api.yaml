@@ -1,0 +1,323 @@
+# API Contract: セキュリティ対策準備
+# Feature: 001-security-preparation
+# Date: 2026-01-06
+
+openapi: 3.1.0
+info:
+  title: Security Preparation API
+  version: 1.0.0
+  description: |
+    セキュリティ対策準備機能のAPIコントラクト。
+    パスワード変更、セッション管理、セキュリティログ取得のエンドポイントを定義。
+
+servers:
+  - url: /api/v1
+    description: API v1
+
+tags:
+  - name: Password
+    description: パスワード管理
+  - name: Sessions
+    description: セッション管理
+  - name: Security
+    description: セキュリティ設定
+
+paths:
+  # ========================================
+  # パスワード管理
+  # ========================================
+  /staff/password:
+    put:
+      tags:
+        - Password
+      summary: パスワード変更
+      description: |
+        認証済み職員のパスワードを変更する。
+        - 現在のパスワードを検証
+        - 新しいパスワードのポリシー検証（12文字以上、複雑性、漏洩チェック）
+        - 過去5世代のパスワード再利用チェック
+      operationId: changePassword
+      security:
+        - sanctum: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: パスワード変更成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              examples:
+                weak_password:
+                  summary: パスワードポリシー違反
+                  value:
+                    message: バリデーションエラー
+                    errors:
+                      new_password:
+                        - パスワードは12文字以上である必要があります
+                        - パスワードには大文字と小文字を含める必要があります
+                password_reused:
+                  summary: パスワード再利用
+                  value:
+                    message: バリデーションエラー
+                    errors:
+                      new_password:
+                        - 過去5回以内に使用したパスワードは再利用できません
+                password_compromised:
+                  summary: 漏洩パスワード
+                  value:
+                    message: バリデーションエラー
+                    errors:
+                      new_password:
+                        - このパスワードはデータ漏洩で検出されています。別のパスワードを使用してください
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: 現在のパスワードが不正
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: 現在のパスワードが正しくありません
+
+  # ========================================
+  # セッション管理
+  # ========================================
+  /staff/sessions:
+    get:
+      tags:
+        - Sessions
+      summary: アクティブセッション一覧取得
+      description: |
+        認証済み職員の全アクティブセッションを取得する。
+        各セッションにはIPアドレス、UserAgent、最終アクティビティ時刻を含む。
+      operationId: getActiveSessions
+      security:
+        - sanctum: []
+      responses:
+        '200':
+          description: セッション一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SessionInfo'
+              example:
+                data:
+                  - id: "abc123def456"
+                    ip_address: "192.168.1.100"
+                    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    last_activity: "2026-01-06T10:30:00+09:00"
+                    is_current: true
+                  - id: "xyz789ghi012"
+                    ip_address: "192.168.1.50"
+                    user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"
+                    last_activity: "2026-01-06T09:15:00+09:00"
+                    is_current: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /staff/sessions/{sessionId}:
+    delete:
+      tags:
+        - Sessions
+      summary: 特定セッション終了
+      description: |
+        指定されたセッションを終了（ログアウト）する。
+        現在のセッションを終了した場合、クライアントは再ログインが必要。
+      operationId: terminateSession
+      security:
+        - sanctum: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          description: 終了するセッションのID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: セッション終了成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                message: セッションを終了しました
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: セッションが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: 指定されたセッションが見つかりません
+
+  /staff/sessions/others:
+    delete:
+      tags:
+        - Sessions
+      summary: 他のセッションをすべて終了
+      description: |
+        現在のセッション以外の全セッションを終了する。
+        セキュリティ侵害が疑われる場合に使用。
+      operationId: terminateOtherSessions
+      security:
+        - sanctum: []
+      responses:
+        '200':
+          description: 他のセッション終了成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - terminated_count
+                properties:
+                  message:
+                    type: string
+                  terminated_count:
+                    type: integer
+                    description: 終了したセッション数
+              example:
+                message: 他のセッションをすべて終了しました
+                terminated_count: 2
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    sanctum:
+      type: http
+      scheme: bearer
+      description: Laravel Sanctum Cookie-based SPA認証
+
+  schemas:
+    # ========================================
+    # リクエスト
+    # ========================================
+    ChangePasswordRequest:
+      type: object
+      required:
+        - current_password
+        - new_password
+        - new_password_confirmation
+      properties:
+        current_password:
+          type: string
+          format: password
+          description: 現在のパスワード
+          example: "OldPassword123!"
+        new_password:
+          type: string
+          format: password
+          minLength: 12
+          description: |
+            新しいパスワード。以下の要件を満たす必要がある：
+            - 12文字以上
+            - 大文字と小文字を含む
+            - 数字を含む
+            - 記号を含む
+            - 漏洩データベースに含まれていない
+            - 過去5世代のパスワードと異なる
+          example: "NewSecurePassword456!"
+        new_password_confirmation:
+          type: string
+          format: password
+          description: 新しいパスワード（確認用）
+          example: "NewSecurePassword456!"
+
+    # ========================================
+    # レスポンス
+    # ========================================
+    SessionInfo:
+      type: object
+      required:
+        - id
+        - ip_address
+        - user_agent
+        - last_activity
+        - is_current
+      properties:
+        id:
+          type: string
+          description: セッションID
+        ip_address:
+          type: string
+          description: クライアントIPアドレス
+        user_agent:
+          type: string
+          description: クライアントUserAgent
+        last_activity:
+          type: string
+          format: date-time
+          description: 最終アクティビティ日時（ISO 8601形式）
+        is_current:
+          type: boolean
+          description: 現在のセッションかどうか
+
+    SuccessResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: 成功メッセージ
+
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - message
+        - errors
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: フィールドごとのエラーメッセージ
+
+  responses:
+    Unauthorized:
+      description: 認証エラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            message: 認証が必要です

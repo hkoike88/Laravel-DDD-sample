@@ -1,0 +1,118 @@
+#!/bin/bash
+# ===================================
+# Pre-commit Hook
+# ===================================
+# コミット前に静的解析とテストを実行
+#
+# セットアップ:
+#   git config core.hooksPath .githooks
+
+set -e
+
+echo "========================================"
+echo "Pre-commit チェックを開始..."
+echo "========================================"
+
+# カラー定義
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# エラーカウント
+ERRORS=0
+
+# Docker Compose コマンドを確認
+if docker compose version &> /dev/null; then
+    DOCKER_COMPOSE="docker compose -f docker-compose.yml -f docker-compose.develop.yml"
+else
+    echo -e "${RED}Error: docker compose が見つかりません${NC}"
+    exit 1
+fi
+
+# コンテナが起動しているか確認
+if ! docker compose ps --status running 2>/dev/null | grep -q "backend"; then
+    echo -e "${YELLOW}Warning: backend コンテナが起動していません${NC}"
+    echo -e "${YELLOW}docker compose -f docker-compose.yml -f docker-compose.develop.yml up -d を実行してください${NC}"
+    exit 1
+fi
+
+if ! docker compose ps --status running 2>/dev/null | grep -q "frontend"; then
+    echo -e "${YELLOW}Warning: frontend コンテナが起動していません${NC}"
+    echo -e "${YELLOW}docker compose -f docker-compose.yml -f docker-compose.develop.yml up -d を実行してください${NC}"
+    exit 1
+fi
+
+# ----------------------------------------
+# Backend チェック
+# ----------------------------------------
+echo ""
+echo -e "${YELLOW}[Backend] 静的解析を実行中...${NC}"
+
+# PHPStan
+echo -n "  PHPStan: "
+if $DOCKER_COMPOSE exec -T backend ./vendor/bin/phpstan analyse --memory-limit=512M --no-progress 2>&1; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}FAILED${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# Pint (コードスタイル)
+echo -n "  Pint: "
+if $DOCKER_COMPOSE exec -T backend ./vendor/bin/pint --test 2>&1; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}FAILED${NC}"
+    echo -e "${YELLOW}  ヒント: ./vendor/bin/pint で自動修正できます${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# ----------------------------------------
+# Frontend チェック
+# ----------------------------------------
+echo ""
+echo -e "${YELLOW}[Frontend] 静的解析を実行中...${NC}"
+
+# ESLint
+echo -n "  ESLint: "
+if $DOCKER_COMPOSE exec -T frontend npm run lint 2>&1; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}FAILED${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# Prettier
+echo -n "  Prettier: "
+if $DOCKER_COMPOSE exec -T frontend npm run format:check 2>&1; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}FAILED${NC}"
+    echo -e "${YELLOW}  ヒント: npm run format で自動修正できます${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# TypeScript
+echo -n "  TypeScript: "
+if $DOCKER_COMPOSE exec -T frontend npm run typecheck 2>&1; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}FAILED${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# ----------------------------------------
+# 結果サマリー
+# ----------------------------------------
+echo ""
+echo "========================================"
+if [ $ERRORS -eq 0 ]; then
+    echo -e "${GREEN}全てのチェックに成功しました${NC}"
+    echo "========================================"
+    exit 0
+else
+    echo -e "${RED}${ERRORS} 件のエラーがあります${NC}"
+    echo "========================================"
+    exit 1
+fi

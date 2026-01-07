@@ -1,0 +1,21 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    # 解析レベル（1-9、9は最も厳格）
+    level: 9
+    
+    # 解析対象パス
+    paths:
+        - app/
+        - packages/
+        - database/
+        - routes/
+
+    # 除外パス（オプショナル: ファイルが存在しない場合も許容）
+    excludePaths:
+        analyseAndScan:
+            # IDE ヘルパーファイル（自動生成、存在しない場合あり）
+            - _ide_helper.php (?)
+            - _ide_helper_models.php (?)
+            - .phpstorm.meta.php (?)

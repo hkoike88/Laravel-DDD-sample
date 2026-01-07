@@ -1,0 +1,203 @@
+<mxfile host="app.diagrams.net" modified="2024-04-22T00:00:00.000Z" agent="Claude" version="21.0.0" type="device">
+  <diagram name="INI-001 画面遷移図" id="screen-flow-ini-001">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- タイトル -->
+        <mxCell id="title" value="INI-001: 認証・利用者管理基盤 画面遷移図" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="350" y="20" width="400" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- 開始点 -->
+        <mxCell id="start" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="50" y="150" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 職員認証・管理 ===== -->
+        <mxCell id="section-auth" value="職員認証・管理" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="120" y="80" width="150" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- ログイン画面 -->
+        <mxCell id="login" value="職員ログイン画面&#xa;&#xa;SCR-001-001&#xa;/staff/login" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="120" y="110" width="130" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- ダッシュボード -->
+        <mxCell id="dashboard" value="職員ダッシュボード&#xa;&#xa;SCR-001-002&#xa;/staff/dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="320" y="110" width="130" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- 職員アカウント一覧 -->
+        <mxCell id="staff-list" value="職員アカウント一覧&#xa;&#xa;SCR-001-003&#xa;/staff/accounts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="520" y="50" width="130" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- 職員アカウント作成 -->
+        <mxCell id="staff-new" value="職員アカウント作成&#xa;&#xa;SCR-001-004&#xa;/staff/accounts/new" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="700" y="20" width="130" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- 職員アカウント編集 -->
+        <mxCell id="staff-edit" value="職員アカウント編集&#xa;&#xa;SCR-001-005&#xa;/staff/accounts/{id}/edit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="700" y="110" width="130" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 利用者管理 ===== -->
+        <mxCell id="section-patron" value="利用者管理" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="520" y="220" width="100" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- 利用者一覧・検索 -->
+        <mxCell id="patron-list" value="利用者一覧・検索&#xa;&#xa;SCR-001-006&#xa;/staff/patrons" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="520" y="250" width="130" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- 利用者登録 -->
+        <mxCell id="patron-new" value="利用者登録&#xa;&#xa;SCR-001-007&#xa;/staff/patrons/new" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="700" y="210" width="130" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- 利用者詳細 -->
+        <mxCell id="patron-detail" value="利用者詳細&#xa;&#xa;SCR-001-008&#xa;/staff/patrons/{id}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="700" y="300" width="130" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- 利用者編集 -->
+        <mxCell id="patron-edit" value="利用者編集&#xa;&#xa;SCR-001-009&#xa;/staff/patrons/{id}/edit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="880" y="300" width="130" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- INI-002 画面群（外部参照） -->
+        <mxCell id="ini002" value="蔵書管理・貸出返却&#xa;(INI-002)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="320" y="250" width="130" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 矢印 ===== -->
+
+        <!-- 開始 → ログイン -->
+        <mxCell id="arrow-start-login" value="" style="endArrow=classic;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="start" target="login">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ログイン → ダッシュボード -->
+        <mxCell id="arrow-login-dashboard" value="" style="endArrow=classic;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#009900;" edge="1" parent="1" source="login" target="dashboard">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow-login-dashboard-label" value="ログイン成功" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#009900;" vertex="1" connectable="0" parent="arrow-login-dashboard">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint y="-10" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ダッシュボード → ログイン（ログアウト） -->
+        <mxCell id="arrow-logout" value="" style="endArrow=classic;html=1;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;curved=1;strokeColor=#CC0000;" edge="1" parent="1" source="dashboard" target="login">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="280" y="220"/>
+              <mxPoint x="160" y="220"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow-logout-label" value="ログアウト" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#CC0000;" vertex="1" connectable="0" parent="arrow-logout">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint y="10" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ダッシュボード → 職員一覧 -->
+        <mxCell id="arrow-dashboard-staff" value="" style="endArrow=classic;html=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="dashboard" target="staff-list">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow-dashboard-staff-label" value="管理者のみ" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=8;" vertex="1" connectable="0" parent="arrow-dashboard-staff">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint y="-8" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 職員一覧 → 職員作成 -->
+        <mxCell id="arrow-staff-new" value="" style="endArrow=classic;html=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="staff-list" target="staff-new">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- 職員一覧 → 職員編集 -->
+        <mxCell id="arrow-staff-edit" value="" style="endArrow=classic;html=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="staff-list" target="staff-edit">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ダッシュボード → 利用者一覧 -->
+        <mxCell id="arrow-dashboard-patron" value="" style="endArrow=classic;html=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="dashboard" target="patron-list">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="480" y="180"/>
+              <mxPoint x="480" y="290"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 利用者一覧 → 利用者登録 -->
+        <mxCell id="arrow-patron-new" value="" style="endArrow=classic;html=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="patron-list" target="patron-new">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- 利用者一覧 → 利用者詳細 -->
+        <mxCell id="arrow-patron-detail" value="" style="endArrow=classic;html=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="patron-list" target="patron-detail">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- 利用者詳細 → 利用者編集 -->
+        <mxCell id="arrow-patron-edit" value="" style="endArrow=classic;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="patron-detail" target="patron-edit">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ダッシュボード → INI-002 -->
+        <mxCell id="arrow-dashboard-ini002" value="" style="endArrow=classic;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;dashed=1;" edge="1" parent="1" source="dashboard" target="ini002">
+          <mxGeometry width="50" height="50" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 凡例 ===== -->
+        <mxCell id="legend-title" value="凡例" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="50" y="400" width="50" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend-noauth" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="50" y="430" width="20" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-noauth-text" value="認証不要画面" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="75" y="430" width="80" height="15" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend-auth" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="50" y="450" width="20" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-auth-text" value="認証必須画面" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="75" y="450" width="80" height="15" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend-admin" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="50" y="470" width="20" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-admin-text" value="管理者権限画面" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="75" y="470" width="80" height="15" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend-patron" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="170" y="430" width="20" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-patron-text" value="利用者管理画面" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="195" y="430" width="80" height="15" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend-external" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="170" y="450" width="20" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-external-text" value="外部イニシアチブ" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="195" y="450" width="80" height="15" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

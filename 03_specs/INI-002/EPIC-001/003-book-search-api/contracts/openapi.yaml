@@ -1,0 +1,265 @@
+openapi: 3.0.3
+info:
+  title: 蔵書検索API
+  description: |
+    図書館の蔵書を検索するためのAPI。
+    タイトル、著者名、ISBNによる検索とページネーションをサポート。
+  version: 1.0.0
+  contact:
+    name: Library System Development Team
+
+servers:
+  - url: http://localhost:8000/api
+    description: 開発環境
+
+paths:
+  /books:
+    get:
+      summary: 蔵書を検索
+      description: |
+        指定された検索条件に一致する蔵書の一覧を取得する。
+        検索条件が指定されない場合は全蔵書を返却。
+        複数の検索条件はAND条件で組み合わせられる。
+      operationId: searchBooks
+      tags:
+        - Books
+      parameters:
+        - name: title
+          in: query
+          description: タイトル（部分一致検索）
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+          example: "猫"
+
+        - name: author
+          in: query
+          description: 著者名（部分一致検索）
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+          example: "夏目"
+
+        - name: isbn
+          in: query
+          description: ISBN（完全一致検索、ISBN-10またはISBN-13形式）
+          required: false
+          schema:
+            type: string
+            pattern: '^(\d{10}|\d{13})$'
+          example: "9784003101018"
+
+        - name: page
+          in: query
+          description: ページ番号（1始まり）
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+
+        - name: per_page
+          in: query
+          description: 1ページあたりの件数
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+
+      responses:
+        '200':
+          description: 検索成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookSearchResponse'
+              examples:
+                success:
+                  summary: 検索結果あり
+                  value:
+                    data:
+                      - id: "01HQXYZ123456789ABCDEFG"
+                        title: "吾輩は猫である"
+                        author: "夏目漱石"
+                        isbn: "9784003101018"
+                        publisher: "岩波書店"
+                        published_year: 1905
+                        genre: "小説"
+                        status: "available"
+                    meta:
+                      total: 1
+                      page: 1
+                      per_page: 20
+                      last_page: 1
+                empty:
+                  summary: 検索結果なし
+                  value:
+                    data: []
+                    meta:
+                      total: 0
+                      page: 1
+                      per_page: 20
+                      last_page: 0
+
+        '422':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                message: "バリデーションエラー"
+                errors:
+                  isbn:
+                    - "ISBNの形式が不正です"
+                  per_page:
+                    - "ページサイズは1〜100の範囲で指定してください"
+
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: "内部サーバーエラーが発生しました"
+
+components:
+  schemas:
+    Book:
+      type: object
+      description: 蔵書情報
+      required:
+        - id
+        - title
+        - status
+      properties:
+        id:
+          type: string
+          description: 蔵書ID（ULID形式）
+          pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'
+          example: "01HQXYZ123456789ABCDEFG"
+        title:
+          type: string
+          description: 書籍タイトル
+          example: "吾輩は猫である"
+        author:
+          type: string
+          nullable: true
+          description: 著者名
+          example: "夏目漱石"
+        isbn:
+          type: string
+          nullable: true
+          description: ISBN（ISBN-10またはISBN-13）
+          pattern: '^(\d{10}|\d{13})$'
+          example: "9784003101018"
+        publisher:
+          type: string
+          nullable: true
+          description: 出版社名
+          example: "岩波書店"
+        published_year:
+          type: integer
+          nullable: true
+          description: 出版年
+          example: 1905
+        genre:
+          type: string
+          nullable: true
+          description: ジャンル
+          example: "小説"
+        status:
+          type: string
+          description: 貸出状態
+          enum:
+            - available
+            - borrowed
+            - reserved
+          example: "available"
+
+    PaginationMeta:
+      type: object
+      description: ページネーション情報
+      required:
+        - total
+        - page
+        - per_page
+        - last_page
+      properties:
+        total:
+          type: integer
+          description: 総件数
+          minimum: 0
+          example: 100
+        page:
+          type: integer
+          description: 現在のページ番号
+          minimum: 1
+          example: 1
+        per_page:
+          type: integer
+          description: 1ページあたりの件数
+          minimum: 1
+          maximum: 100
+          example: 20
+        last_page:
+          type: integer
+          description: 最終ページ番号
+          minimum: 0
+          example: 5
+
+    BookSearchResponse:
+      type: object
+      description: 蔵書検索レスポンス
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          description: 蔵書リスト
+          items:
+            $ref: '#/components/schemas/Book'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    ValidationErrorResponse:
+      type: object
+      description: バリデーションエラーレスポンス
+      required:
+        - message
+        - errors
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+          example: "バリデーションエラー"
+        errors:
+          type: object
+          description: フィールドごとのエラー詳細
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+    ErrorResponse:
+      type: object
+      description: エラーレスポンス
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+          example: "エラーが発生しました"
+
+tags:
+  - name: Books
+    description: 蔵書関連のAPI

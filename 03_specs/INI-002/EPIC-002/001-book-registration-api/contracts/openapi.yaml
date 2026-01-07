@@ -1,0 +1,204 @@
+openapi: 3.0.3
+info:
+  title: 蔵書登録API
+  description: 図書館蔵書管理システム - 蔵書登録エンドポイント
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080/api
+    description: 開発環境
+
+paths:
+  /books:
+    post:
+      summary: 蔵書を登録
+      description: |
+        新規蔵書をシステムに登録する。
+        タイトルは必須、その他の項目はオプション。
+        登録成功時は201 Createdと登録された蔵書情報を返却。
+      operationId: createBook
+      tags:
+        - Books
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookRequest'
+            examples:
+              minimal:
+                summary: タイトルのみ
+                value:
+                  title: "吾輩は猫である"
+              full:
+                summary: 全項目入力
+                value:
+                  title: "吾輩は猫である"
+                  author: "夏目漱石"
+                  isbn: "978-4-00-310101-8"
+                  publisher: "岩波書店"
+                  published_year: 1905
+                  genre: "文学"
+      responses:
+        '201':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookResponse'
+              example:
+                data:
+                  id: "01JFXXXXXXXXXXXXXXXXXXX"
+                  title: "吾輩は猫である"
+                  author: "夏目漱石"
+                  isbn: "9784003101018"
+                  publisher: "岩波書店"
+                  published_year: 1905
+                  genre: "文学"
+                  status: "available"
+        '422':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              examples:
+                title_required:
+                  summary: タイトル未入力
+                  value:
+                    message: "The given data was invalid."
+                    errors:
+                      title:
+                        - "タイトルは必須です"
+                invalid_isbn:
+                  summary: ISBN形式エラー
+                  value:
+                    message: "The given data was invalid."
+                    errors:
+                      isbn:
+                        - "ISBNの形式が正しくありません"
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CreateBookRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: 書籍タイトル（必須）
+          example: "吾輩は猫である"
+        author:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: 著者名
+          example: "夏目漱石"
+        isbn:
+          type: string
+          pattern: '^(?:ISBN[-]?)?(97[89][-]?\d{1,5}[-]?\d{1,7}[-]?\d{1,7}[-]?\d|(?:\d{9}[\dX]))$'
+          nullable: true
+          description: ISBN-10またはISBN-13形式
+          example: "978-4-00-310101-8"
+        publisher:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: 出版社名
+          example: "岩波書店"
+        published_year:
+          type: integer
+          minimum: 1
+          maximum: 2030
+          nullable: true
+          description: 出版年（1〜現在年+5）
+          example: 1905
+        genre:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: ジャンル
+          example: "文学"
+
+    BookResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Book'
+
+    Book:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 蔵書ID（ULID形式）
+          example: "01JFXXXXXXXXXXXXXXXXXXX"
+        title:
+          type: string
+          description: 書籍タイトル
+          example: "吾輩は猫である"
+        author:
+          type: string
+          nullable: true
+          description: 著者名
+          example: "夏目漱石"
+        isbn:
+          type: string
+          nullable: true
+          description: ISBN（正規化済み、ハイフンなし）
+          example: "9784003101018"
+        publisher:
+          type: string
+          nullable: true
+          description: 出版社名
+          example: "岩波書店"
+        published_year:
+          type: integer
+          nullable: true
+          description: 出版年
+          example: 1905
+        genre:
+          type: string
+          nullable: true
+          description: ジャンル
+          example: "文学"
+        status:
+          type: string
+          enum:
+            - available
+            - borrowed
+            - reserved
+          description: 貸出状態（登録時はavailable固定）
+          example: "available"
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "The given data was invalid."
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            title:
+              - "タイトルは必須です"
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Server Error"

@@ -1,0 +1,365 @@
+openapi: 3.0.3
+info:
+  title: 職員アカウント編集 API
+  description: EPIC-004 職員アカウント編集機能のAPI仕様
+  version: 1.0.0
+
+servers:
+  - url: http://localhost/api
+    description: 開発環境
+
+paths:
+  /staff/accounts/{id}:
+    get:
+      summary: 職員詳細取得
+      description: 指定されたIDの職員詳細情報を取得する
+      operationId: getStaffDetail
+      tags:
+        - Staff Accounts
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 職員ID (ULID)
+          schema:
+            type: string
+            pattern: ^[0-9A-HJKMNP-TV-Z]{26}$
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffDetailResponse'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足（管理者のみアクセス可）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 職員が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: 職員更新
+      description: 職員の氏名、メールアドレス、権限を更新する
+      operationId: updateStaff
+      tags:
+        - Staff Accounts
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 職員ID (ULID)
+          schema:
+            type: string
+            pattern: ^[0-9A-HJKMNP-TV-Z]{26}$
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStaffRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateStaffResponse'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 職員が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 競合（楽観的ロック）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictErrorResponse'
+        '422':
+          description: ビジネスルール違反
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessRuleErrorResponse'
+
+  /staff/accounts/{id}/reset-password:
+    post:
+      summary: パスワードリセット
+      description: 職員のパスワードをリセットし、新しい一時パスワードを発行する
+      operationId: resetPassword
+      tags:
+        - Staff Accounts
+      security:
+        - sanctum: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 職員ID (ULID)
+          schema:
+            type: string
+            pattern: ^[0-9A-HJKMNP-TV-Z]{26}$
+      responses:
+        '200':
+          description: リセット成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetPasswordResponse'
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 職員が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    sanctum:
+      type: apiKey
+      in: cookie
+      name: laravel-session
+      description: Laravel Sanctum SPA認証
+
+  schemas:
+    StaffDetailResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - id
+            - name
+            - email
+            - role
+            - isCurrentUser
+            - updatedAt
+            - createdAt
+          properties:
+            id:
+              type: string
+              description: 職員ID (ULID)
+              example: "01HV8J3N5Y6X7Z8A9B0C1D2E3F"
+            name:
+              type: string
+              description: 氏名
+              example: "田中 太郎"
+            email:
+              type: string
+              format: email
+              description: メールアドレス
+              example: "tanaka@example.com"
+            role:
+              type: string
+              enum: [admin, staff]
+              description: 権限
+              example: "admin"
+            isCurrentUser:
+              type: boolean
+              description: ログイン中のユーザーかどうか
+              example: false
+            updatedAt:
+              type: string
+              format: date-time
+              description: 更新日時（ISO 8601）
+              example: "2026-01-06T10:00:00+09:00"
+            createdAt:
+              type: string
+              format: date-time
+              description: 作成日時（ISO 8601）
+              example: "2026-01-01T09:00:00+09:00"
+
+    UpdateStaffRequest:
+      type: object
+      required:
+        - name
+        - email
+        - role
+        - updatedAt
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 氏名
+          example: "田中 花子"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: メールアドレス
+          example: "tanaka-hanako@example.com"
+        role:
+          type: string
+          enum: [admin, staff]
+          description: 権限
+          example: "admin"
+        updatedAt:
+          type: string
+          format: date-time
+          description: 更新日時（楽観的ロック用）
+          example: "2026-01-06T10:00:00+09:00"
+
+    UpdateStaffResponse:
+      type: object
+      required:
+        - message
+        - staff
+      properties:
+        message:
+          type: string
+          description: 成功メッセージ
+          example: "職員情報を更新しました"
+        staff:
+          type: object
+          required:
+            - id
+            - name
+            - email
+            - role
+            - updatedAt
+          properties:
+            id:
+              type: string
+              description: 職員ID
+              example: "01HV8J3N5Y6X7Z8A9B0C1D2E3F"
+            name:
+              type: string
+              description: 氏名
+              example: "田中 花子"
+            email:
+              type: string
+              format: email
+              description: メールアドレス
+              example: "tanaka-hanako@example.com"
+            role:
+              type: string
+              enum: [admin, staff]
+              description: 権限
+              example: "admin"
+            updatedAt:
+              type: string
+              format: date-time
+              description: 更新後の更新日時
+              example: "2026-01-06T10:30:00+09:00"
+
+    ResetPasswordResponse:
+      type: object
+      required:
+        - message
+        - temporaryPassword
+      properties:
+        message:
+          type: string
+          description: 成功メッセージ
+          example: "パスワードをリセットしました"
+        temporaryPassword:
+          type: string
+          description: 新しい一時パスワード
+          example: "xK9#mP2$qR5@vN8!"
+
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+          example: "認証が必要です"
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - message
+        - errors
+      properties:
+        message:
+          type: string
+          description: エラーメッセージ
+          example: "入力内容に誤りがあります"
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            name: ["氏名は必須です"]
+            email: ["有効なメールアドレスを入力してください"]
+
+    ConflictErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: 競合エラーメッセージ
+          example: "他のユーザーによって更新されています。最新の情報を確認してください"
+
+    BusinessRuleErrorResponse:
+      type: object
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          description: ビジネスルール違反メッセージ
+          example: "自分自身の権限は変更できません"
+        code:
+          type: string
+          description: エラーコード
+          enum: [SELF_ROLE_CHANGE, LAST_ADMIN_PROTECTION, DUPLICATE_EMAIL]
+          example: "SELF_ROLE_CHANGE"
