@@ -22,7 +22,10 @@
         "nunomaduro/collision": "^8.6",
         "pestphp/pest": "^3.8",
         "pestphp/pest-plugin-laravel": "^3.2",
-        "phpunit/phpunit": "^11.5.3"
+        "phpmd/phpmd": "^2.15",
+        "phpmetrics/phpmetrics": "*",
+        "phpunit/phpunit": "^11.5.3",
+        "tomasvotruba/cognitive-complexity": "^1.0"
     },
     "autoload": {
         "psr-4": {

@@ -2,7 +2,7 @@
 # プロジェクト Makefile
 # ============================================
 
-.PHONY: help up down restart logs shell test lint seed seed-books import-books generate-books migrate fresh security security-backend security-frontend security-audit phpstan
+.PHONY: help up down restart logs shell test lint seed seed-books import-books generate-books migrate fresh security security-backend security-frontend security-audit phpstan phpmd phpmd-report metrics
 
 # デフォルトターゲット
 help:
@@ -25,7 +25,12 @@ help:
 	@echo "  make security-backend  - バックエンドのセキュリティスキャン"
 	@echo "  make security-frontend - フロントエンドのセキュリティスキャン"
 	@echo "  make security-audit    - 依存パッケージの脆弱性チェックのみ"
-	@echo "  make phpstan           - PHPStan静的解析"
+	@echo "  make phpstan           - PHPStan静的解析（認知的複雑度を含む）"
+	@echo ""
+	@echo "=== コード品質分析 ==="
+	@echo "  make metrics           - PHP Metricsでコード品質分析"
+	@echo "  make phpmd             - PHPMD循環的複雑度チェック（ターミナル出力）"
+	@echo "  make phpmd-report      - PHPMD循環的複雑度チェック（HTMLレポート生成）"
 	@echo ""
 	@echo "=== データベース ==="
 	@echo "  make migrate   - マイグレーションを実行"
@@ -165,4 +170,49 @@ security-audit:
 
 # PHPStan静的解析
 phpstan:
-	docker compose exec backend sh -c "cd /var/www/html && ./vendor/bin/phpstan analyse --configuration=phpstan.neon"
+	docker compose exec backend sh -c "cd /var/www/html && ./vendor/bin/phpstan analyse --configuration=phpstan.neon --memory-limit=512M"
+
+# ============================================
+# コード品質分析
+# ============================================
+
+# PHP Metricsでコード品質分析
+metrics:
+	@echo ""
+	@echo "========================================"
+	@echo "PHP Metrics コード品質分析"
+	@echo "========================================"
+	@echo ""
+	@docker compose exec backend sh -c "cd /var/www/html && ./vendor/bin/phpmetrics --report-html=./storage/phpmetrics ./app ./packages"
+	@echo ""
+	@echo "========================================"
+	@echo "レポートが生成されました"
+	@echo "場所: backend/storage/phpmetrics/index.html"
+	@echo "========================================"
+
+# PHPMD循環的複雑度チェック（ターミナル出力）
+phpmd:
+	@echo ""
+	@echo "========================================"
+	@echo "PHPMD 循環的複雑度チェック"
+	@echo "========================================"
+	@echo ""
+	@docker compose exec backend sh -c "cd /var/www/html && ./vendor/bin/phpmd ./app,./packages text phpmd.xml"
+	@echo ""
+	@echo "========================================"
+	@echo "PHPMD チェック完了"
+	@echo "========================================"
+
+# PHPMD循環的複雑度チェック（HTMLレポート生成）
+phpmd-report:
+	@echo ""
+	@echo "========================================"
+	@echo "PHPMD HTMLレポート生成"
+	@echo "========================================"
+	@echo ""
+	@docker compose exec backend sh -c "cd /var/www/html && mkdir -p ./storage/phpmd && ./vendor/bin/phpmd ./app,./packages html phpmd.xml --reportfile ./storage/phpmd/report.html" || true
+	@echo ""
+	@echo "========================================"
+	@echo "レポートが生成されました"
+	@echo "場所: backend/storage/phpmd/report.html"
+	@echo "========================================"

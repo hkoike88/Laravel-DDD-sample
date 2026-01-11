@@ -46,6 +46,9 @@ RUN composer install --no-scripts --no-autoloader --prefer-dist
 # ソースコードをコピー
 COPY . .
 
+# 必要なディレクトリを作成
+RUN mkdir -p bootstrap/cache storage/framework/{sessions,views,cache}
+
 # オートローダーの生成とスクリプト実行
 RUN composer dump-autoload --optimize
 

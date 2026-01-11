@@ -25,3 +25,7 @@ Thumbs.db
 
 # PHPStan
 /phpstan.cache/
+
+# コード品質分析レポート
+/storage/phpmetrics/
+/storage/phpmd/

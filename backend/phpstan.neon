@@ -1,10 +1,11 @@
 includes:
     - vendor/larastan/larastan/extension.neon
+    - vendor/tomasvotruba/cognitive-complexity/config/extension.neon
 
 parameters:
     # 解析レベル（1-9、9は最も厳格）
     level: 9
-    
+
     # 解析対象パス
     paths:
         - app/
@@ -19,3 +20,10 @@ parameters:
             - _ide_helper.php (?)
             - _ide_helper_models.php (?)
             - .phpstorm.meta.php (?)
+
+    # 認知的複雑度の上限設定
+    cognitive_complexity:
+        # クラスの認知的複雑度の上限（デフォルト: 50）
+        class: 50
+        # 関数/メソッドの認知的複雑度の上限（デフォルト: 8）
+        function: 8

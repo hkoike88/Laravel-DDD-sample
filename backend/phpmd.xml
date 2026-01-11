@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="Laravel DDD Project Rules"
+         xmlns="http://pmd.sf.net/ruleset/1.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sf.net/ruleset/1.0.0 http://pmd.sf.net/ruleset_xml_schema.xsd"
+         xsi:noNamespaceSchemaLocation="http://pmd.sf.net/ruleset_xml_schema.xsd">
+    <description>
+        Laravel DDD プロジェクトのPHPMDルールセット
+        循環的複雑度を含むコード品質メトリクスをチェック
+    </description>
+
+    <!-- クリーンコード規則 -->
+    <rule ref="rulesets/cleancode.xml">
+        <!-- 静的アクセスは Laravel で一般的なため除外 -->
+        <exclude name="StaticAccess"/>
+        <!-- if文の中のelse式（早期リターンを推奨しているが、可読性のため許容） -->
+        <exclude name="ElseExpression"/>
+    </rule>
+
+    <!-- コードサイズ規則（循環的複雑度を含む） -->
+    <rule ref="rulesets/codesize.xml">
+        <!-- 個別に設定を上書き -->
+        <exclude name="CyclomaticComplexity"/>
+        <exclude name="NPathComplexity"/>
+        <exclude name="ExcessiveMethodLength"/>
+        <exclude name="ExcessiveClassLength"/>
+        <exclude name="ExcessiveParameterList"/>
+        <exclude name="ExcessivePublicCount"/>
+        <exclude name="TooManyFields"/>
+        <exclude name="TooManyMethods"/>
+        <exclude name="TooManyPublicMethods"/>
+        <exclude name="ExcessiveClassComplexity"/>
+    </rule>
+
+    <!-- 循環的複雑度（Cyclomatic Complexity）の設定 -->
+    <rule ref="rulesets/codesize.xml/CyclomaticComplexity">
+        <properties>
+            <!-- メソッド/関数の循環的複雑度の上限（デフォルト: 10） -->
+            <!-- 10以下: シンプル、15以下: やや複雑、20以下: 複雑、20超: 非常に複雑 -->
+            <property name="reportLevel" value="10"/>
+            <!-- 警告を表示するが処理は継続 -->
+            <property name="showClassesComplexity" value="true"/>
+            <property name="showMethodsComplexity" value="true"/>
+        </properties>
+    </rule>
+
+    <!-- NPath複雑度の設定 -->
+    <rule ref="rulesets/codesize.xml/NPathComplexity">
+        <properties>
+            <!-- NPath複雑度の上限（デフォルト: 200） -->
+            <property name="minimum" value="200"/>
+        </properties>
+    </rule>
+
+    <!-- メソッドの長さ制限 -->
+    <rule ref="rulesets/codesize.xml/ExcessiveMethodLength">
+        <properties>
+            <!-- メソッドの最大行数（デフォルト: 100） -->
+            <property name="minimum" value="100"/>
+        </properties>
+    </rule>
+
+    <!-- クラスの長さ制限 -->
+    <rule ref="rulesets/codesize.xml/ExcessiveClassLength">
+        <properties>
+            <!-- クラスの最大行数（デフォルト: 1000） -->
+            <property name="minimum" value="1000"/>
+        </properties>
+    </rule>
+
+    <!-- クラスの複雑度制限 -->
+    <rule ref="rulesets/codesize.xml/ExcessiveClassComplexity">
+        <properties>
+            <!-- クラス全体の循環的複雑度の上限（デフォルト: 50） -->
+            <property name="maximum" value="50"/>
+        </properties>
+    </rule>
+
+    <!-- パラメータ数の制限 -->
+    <rule ref="rulesets/codesize.xml/ExcessiveParameterList">
+        <properties>
+            <!-- メソッドの最大パラメータ数（デフォルト: 10） -->
+            <property name="minimum" value="10"/>
+        </properties>
+    </rule>
+
+    <!-- publicメソッド数の制限 -->
+    <rule ref="rulesets/codesize.xml/ExcessivePublicCount">
+        <properties>
+            <!-- クラスの最大publicメソッド数（デフォルト: 45） -->
+            <property name="minimum" value="45"/>
+        </properties>
+    </rule>
+
+    <!-- フィールド数の制限 -->
+    <rule ref="rulesets/codesize.xml/TooManyFields">
+        <properties>
+            <!-- クラスの最大フィールド数（デフォルト: 15） -->
+            <property name="maxfields" value="15"/>
+        </properties>
+    </rule>
+
+    <!-- メソッド数の制限 -->
+    <rule ref="rulesets/codesize.xml/TooManyMethods">
+        <properties>
+            <!-- クラスの最大メソッド数（デフォルト: 25） -->
+            <property name="maxmethods" value="25"/>
+        </properties>
+    </rule>
+
+    <!-- publicメソッド数の制限（TooManyMethods用） -->
+    <rule ref="rulesets/codesize.xml/TooManyPublicMethods">
+        <properties>
+            <!-- クラスの最大publicメソッド数（デフォルト: 10） -->
+            <property name="maxmethods" value="10"/>
+        </properties>
+    </rule>
+
+    <!-- 論争的な規則（スタイルに関する規則、必要に応じて有効化） -->
+    <rule ref="rulesets/controversial.xml">
+        <!-- キャメルケースの変数名（Laravel の snake_case スタイルと競合するため除外） -->
+        <exclude name="CamelCaseVariableName"/>
+        <exclude name="CamelCasePropertyName"/>
+        <exclude name="CamelCaseParameterName"/>
+    </rule>
+
+    <!-- 設計規則 -->
+    <rule ref="rulesets/design.xml">
+        <!-- exit式（Laravelのabort()やdie()を使用するため除外） -->
+        <exclude name="ExitExpression"/>
+        <!-- 評価回数（goto文の使用制限、通常は不要だが念のため除外） -->
+        <exclude name="GotoStatement"/>
+    </rule>
+
+    <!-- 命名規則 -->
+    <rule ref="rulesets/naming.xml">
+        <!-- 短い変数名（$id, $i など一般的な短い名前を許容） -->
+        <exclude name="ShortVariable"/>
+        <!-- 長い変数名（詳細な変数名を許容） -->
+        <exclude name="LongVariable"/>
+    </rule>
+
+    <!-- 未使用コード規則 -->
+    <rule ref="rulesets/unusedcode.xml"/>
+</ruleset>
