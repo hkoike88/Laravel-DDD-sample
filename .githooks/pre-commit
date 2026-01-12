@@ -117,8 +117,10 @@ fi
 # npm Audit (セキュリティスキャン)
 echo -n "  npm Audit: "
 AUDIT_JSON=$($DOCKER_COMPOSE exec -T frontend npm audit --json 2>&1 || true)
-CRITICAL=$(echo "$AUDIT_JSON" | grep -o '"critical":[0-9]*' | grep -o '[0-9]*' || echo "0")
-HIGH=$(echo "$AUDIT_JSON" | grep -o '"high":[0-9]*' | grep -o '[0-9]*' || echo "0")
+CRITICAL=$(echo "$AUDIT_JSON" | grep -o '"critical":[0-9]*' | grep -o '[0-9]*' | head -1)
+HIGH=$(echo "$AUDIT_JSON" | grep -o '"high":[0-9]*' | grep -o '[0-9]*' | head -1)
+CRITICAL=${CRITICAL:-0}
+HIGH=${HIGH:-0}
 if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
     echo -e "${RED}FAILED${NC}"
     echo -e "${YELLOW}  Critical ($CRITICAL) または High ($HIGH) の脆弱性が見つかりました${NC}"
