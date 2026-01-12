@@ -100,7 +100,8 @@ Claude は以下の観点でコードをレビューします：
 ### API 使用料
 - Claude API は従量課金制です
 - モデル: `claude-sonnet-4-5-20250929` (Claude 4.5 Sonnet - 2026年1月時点の最新)
-- 料金: $3 input / $15 output per million tokens
+- 料金: $3 input / $15 output per million tokens（2026年1月時点）
+- 最新の料金: https://www.anthropic.com/pricing
 - 最大トークン数: 4096
 - クレジット残高が不足している場合、レビューは実行されません
 

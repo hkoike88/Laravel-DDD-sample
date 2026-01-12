@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 # ========================================
 # main/master ブランチへの直接コミット禁止
 # ========================================
-BRANCH=$(git symbolic-ref HEAD 2>/dev/null | sed 's/refs\/heads\///')
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
 if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
     echo -e "${RED}========================================${NC}"
     echo -e "${RED}エラー: main/master ブランチへの直接コミットは禁止されています${NC}"

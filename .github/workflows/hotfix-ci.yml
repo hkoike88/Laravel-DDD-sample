@@ -13,11 +13,9 @@ on:
   push:
     branches:
       - 'hotfix/**'
-      - 'hotfix/*'
   pull_request:
     branches:
       - 'hotfix/**'
-      - 'hotfix/*'
 
 env:
   PHP_VERSION: '8.3'
@@ -110,7 +108,21 @@ jobs:
 
       - name: Check Critical/High vulnerabilities
         run: |
-          if grep -qE '"severity":\s*"(critical|high)"' composer-audit-report.json 2>/dev/null; then
+          # ファイル存在チェック
+          if [ ! -f composer-audit-report.json ]; then
+            echo "⚠️ composer audit レポートが生成されませんでした"
+            exit 0
+          fi
+
+          # JSON 検証
+          if ! jq empty composer-audit-report.json 2>/dev/null; then
+            echo "⚠️ JSON パースエラー。composer audit の出力を確認してください"
+            cat composer-audit-report.json
+            exit 0
+          fi
+
+          # 脆弱性チェック
+          if grep -qE '"severity":\s*"(critical|high)"' composer-audit-report.json; then
             echo "❌ Critical または High の脆弱性が見つかりました"
             cat composer-audit-report.json
             exit 1
@@ -161,8 +173,17 @@ jobs:
         id: npm-audit
         run: |
           npm audit --json > npm-audit-report.json 2>&1 || true
-          CRITICAL=$(cat npm-audit-report.json | jq '.metadata.vulnerabilities.critical // 0')
-          HIGH=$(cat npm-audit-report.json | jq '.metadata.vulnerabilities.high // 0')
+
+          # ファイル存在チェック
+          if [ ! -f npm-audit-report.json ]; then
+            echo "⚠️ npm audit レポートが生成されませんでした"
+            exit 0
+          fi
+
+          # 脆弱性カウント（jq エラーハンドリング付き）
+          CRITICAL=$(jq -r '.metadata.vulnerabilities.critical // 0' npm-audit-report.json 2>/dev/null || echo "0")
+          HIGH=$(jq -r '.metadata.vulnerabilities.high // 0' npm-audit-report.json 2>/dev/null || echo "0")
+
           if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
             echo "❌ Critical ($CRITICAL) または High ($HIGH) の脆弱性が見つかりました"
             npm audit

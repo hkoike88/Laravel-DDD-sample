@@ -12,11 +12,9 @@ on:
   push:
     branches:
       - 'feature/**'
-      - 'feature/*'
   pull_request:
     branches:
       - 'feature/**'
-      - 'feature/*'
 
 env:
   PHP_VERSION: '8.3'

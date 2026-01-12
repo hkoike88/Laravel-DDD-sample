@@ -13,6 +13,9 @@ on:
       - synchronize
       - reopened
 
+env:
+  MAX_DIFF_SIZE: 50000  # 差分サイズの上限（bytes）。変更可能
+
 jobs:
   claude-review:
     name: Claude Code Review
@@ -36,8 +39,9 @@ jobs:
 
           # 差分が大きすぎる場合は要約
           DIFF_SIZE=$(echo "$DIFF" | wc -c)
-          if [ "$DIFF_SIZE" -gt 50000 ]; then
-            echo "差分が大きすぎます（${DIFF_SIZE} bytes）。ファイルリストのみを表示します。"
+          MAX_DIFF=${MAX_DIFF_SIZE:-50000}
+          if [ "$DIFF_SIZE" -gt "$MAX_DIFF" ]; then
+            echo "差分が大きすぎます（${DIFF_SIZE} bytes > ${MAX_DIFF} bytes）。ファイルリストのみを表示します。"
             DIFF=$(git diff --name-status origin/${{ github.base_ref }}...HEAD)
           fi
 
@@ -130,11 +134,7 @@ jobs:
               }]
             }")
 
-          # レスポンスをデバッグ出力
-          echo "API Response:"
-          echo "$RESPONSE" | jq .
-
-          # エラーチェック
+          # エラーチェック（レスポンス全体は出力しない - API キー露出防止）
           ERROR=$(echo "$RESPONSE" | jq -r '.error.message // empty')
           if [ -n "$ERROR" ]; then
             echo "❌ Claude API エラー: $ERROR"

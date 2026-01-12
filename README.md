@@ -254,6 +254,19 @@ feature/xxx (機能開発)
 
 ※ フックを有効化するには `git config core.hooksPath .githooks` を実行してください
 
+#### 緊急時の Git フックバイパス
+
+**⚠️ 通常は使用しないでください**
+
+緊急時のみ、以下のコマンドでフックをバイパスできます：
+
+```bash
+git commit --no-verify
+git push --no-verify
+```
+
+**注意**: バイパス後は必ず PR を作成し、CI チェックを通過させてください
+
 ### Claude によるコードレビュー
 
 main ブランチへのプルリクエスト作成時に、**Claude が自動的にコードレビュー**を実行します。
@@ -267,7 +280,11 @@ main ブランチへのプルリクエスト作成時に、**Claude が自動的
 
 **セットアップ**: [.github/CLAUDE_REVIEW_SETUP.md](./.github/CLAUDE_REVIEW_SETUP.md) を参照してください
 
-**⚠️ 注意**: Claude API は従量課金制です。クレジット残高が不足している場合、レビューは実行されません。無効化する場合は `.github/workflows/pr-review.yml` のコメントを参照してください。
+**⚠️ 注意**:
+- Claude API は従量課金制です（約 $0.10-0.50 per レビュー）
+- 大規模な PR では高額になる可能性があります
+- クレジット残高が不足している場合、レビューは実行されません
+- 無効化する場合は `.github/workflows/pr-review.yml` のコメントを参照してください
 
 ### GitHub Actions ワークフロー
 
