@@ -110,7 +110,24 @@ jobs:
 
       - name: Check Critical/High vulnerabilities
         run: |
-          if grep -qE '"severity":\s*"(critical|high)"' composer-audit-report.json 2>/dev/null; then
+          # ファイル存在チェック
+          if [ ! -f composer-audit-report.json ]; then
+            echo "⚠️ composer audit レポートが生成されませんでした"
+            exit 0
+          fi
+
+          # JSON 検証
+          if ! ERROR_MSG=$(jq empty composer-audit-report.json 2>&1); then
+            echo "⚠️ JSON パースエラー:"
+            echo "$ERROR_MSG"
+            echo "--- composer audit の出力 ---"
+            cat composer-audit-report.json
+            exit 0
+          fi
+
+          # 脆弱性チェック
+          if grep -qE '"severity":[[:space:]]*"critical"' composer-audit-report.json || \
+             grep -qE '"severity":[[:space:]]*"high"' composer-audit-report.json; then
             echo "❌ Critical または High の脆弱性が見つかりました"
             cat composer-audit-report.json
             exit 1
