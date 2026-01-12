@@ -267,6 +267,19 @@ main ブランチへのプルリクエスト作成時に、**Claude が自動的
 
 **セットアップ**: [.github/CLAUDE_REVIEW_SETUP.md](./.github/CLAUDE_REVIEW_SETUP.md) を参照してください
 
+### GitHub Actions ワークフロー
+
+プロジェクトには以下の自動化ワークフローが設定されています：
+
+| ワークフロー | トリガー | 内容 |
+|------------|---------|------|
+| **CI** | main/develop へのプッシュ・PR | 静的解析、テスト実行 |
+| **Feature CI** | feature/* へのプッシュ・PR | 静的解析、テスト実行（開発中のブランチで早期検出） |
+| **Security Scan** | main/develop へのプッシュ・PR<br>毎週月曜 9:00 JST | 依存パッケージの脆弱性スキャン |
+| **PR Review** | main への PR 作成時 | Claude による自動コードレビュー |
+
+**Note**: Feature CI は条件を柔軟に変更できるよう独立したファイルとして管理しています
+
 ---
 
 ## アクセス
