@@ -57,6 +57,13 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
+          # API キーの存在確認
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "❌ ANTHROPIC_API_KEY が設定されていません"
+            echo "review=⚠️ Claude レビューを実行するには、GitHub Secrets に ANTHROPIC_API_KEY を設定してください。\n\n詳細: .github/CLAUDE_REVIEW_SETUP.md" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           # レビュープロンプトを作成
           cat > prompt.txt << 'PROMPT_EOF'
           あなたはコードレビュアーです。以下のプルリクエストをレビューしてください。
@@ -106,7 +113,8 @@ jobs:
           PROMPT_EOF
 
           # Claude API を呼び出し
-          REVIEW=$(curl -s https://api.anthropic.com/v1/messages \
+          echo "🤖 Claude API を呼び出し中..."
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
@@ -117,7 +125,30 @@ jobs:
                 \"role\": \"user\",
                 \"content\": $(jq -Rs . < prompt.txt)
               }]
-            }" | jq -r '.content[0].text')
+            }")
+
+          # レスポンスをデバッグ出力
+          echo "API Response:"
+          echo "$RESPONSE" | jq .
+
+          # エラーチェック
+          ERROR=$(echo "$RESPONSE" | jq -r '.error.message // empty')
+          if [ -n "$ERROR" ]; then
+            echo "❌ Claude API エラー: $ERROR"
+            echo "review=❌ Claude API でエラーが発生しました: $ERROR" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # レビュー結果を抽出
+          REVIEW=$(echo "$RESPONSE" | jq -r '.content[0].text // empty')
+
+          if [ -z "$REVIEW" ]; then
+            echo "❌ レビュー結果が空です"
+            echo "review=❌ Claude からレスポンスを取得できませんでした。API レスポンスを確認してください。" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "✅ レビュー取得成功"
 
           # 結果を環境変数に保存
           echo "review<<EOF" >> $GITHUB_OUTPUT
@@ -125,11 +156,23 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Post review comment
+        if: always()
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const review = `${{ steps.claude.outputs.review }}`;
+
+            if (!review || review === 'null' || review === '') {
+              console.log('⚠️ レビュー結果が空のため、コメントをスキップします');
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## 🤖 Claude によるコードレビュー\n\n⚠️ レビュー結果を取得できませんでした。\n\nActions のログを確認してください: ${context.payload.repository.html_url}/actions/runs/${context.runId}`
+              });
+              return;
+            }
 
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
