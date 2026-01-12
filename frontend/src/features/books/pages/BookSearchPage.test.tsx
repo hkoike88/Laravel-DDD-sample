@@ -71,7 +71,7 @@ describe('BookSearchPage統合テスト', () => {
 
       server.use(
         http.get('*/api/books', async () => {
-          await delay(100)
+          await delay(200)
           return HttpResponse.json({
             data: [
               {
@@ -100,11 +100,13 @@ describe('BookSearchPage統合テスト', () => {
         expect(container.querySelector('.animate-spin')).toBeInTheDocument()
       })
 
-      // 検索結果が表示されることを確認（スピナーが消える）
+      // 検索結果が表示されることを確認
       await waitFor(() => {
-        expect(container.querySelector('.animate-spin')).not.toBeInTheDocument()
+        expect(screen.getByText('テスト本')).toBeInTheDocument()
       })
-      expect(screen.getByText('テスト本')).toBeInTheDocument()
+
+      // スピナーが消えたことを確認
+      expect(container.querySelector('.animate-spin')).not.toBeInTheDocument()
     })
   })
 
