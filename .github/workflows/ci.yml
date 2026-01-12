@@ -32,8 +32,6 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: secret
           MYSQL_DATABASE: library_test
-          MYSQL_USER: library
-          MYSQL_PASSWORD: secret
         ports:
           - 3306:3306
         options: >-
@@ -89,13 +87,13 @@ jobs:
         run: ./vendor/bin/pint --test
 
       - name: Run tests
-        run: ./vendor/bin/pest --parallel
+        run: ./vendor/bin/pest
         env:
           DB_CONNECTION: mysql
           DB_HOST: 127.0.0.1
           DB_PORT: 3306
           DB_DATABASE: library_test
-          DB_USERNAME: library
+          DB_USERNAME: root
           DB_PASSWORD: secret
 
   # ----------------------------------------
