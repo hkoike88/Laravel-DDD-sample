@@ -153,10 +153,8 @@ jobs:
 
           echo "✅ レビュー取得成功"
 
-          # 結果を環境変数に保存
-          echo "review<<EOF" >> $GITHUB_OUTPUT
-          echo "$REVIEW" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # 結果をファイルに保存（エスケープ問題を回避）
+          echo "$REVIEW" > review.txt
 
       - name: Post review comment
         if: always()
@@ -164,9 +162,24 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const review = `${{ steps.claude.outputs.review }}`;
+            const fs = require('fs');
 
-            if (!review || review === 'null' || review === '') {
+            // レビュー結果をファイルから読み込む（エスケープ問題を回避）
+            let review = '';
+            try {
+              review = fs.readFileSync('review.txt', 'utf8');
+            } catch (error) {
+              console.log('⚠️ レビュー結果ファイルが見つかりません');
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## 🤖 Claude によるコードレビュー\n\n⚠️ レビュー結果を取得できませんでした。\n\nActions のログを確認してください: ${context.payload.repository.html_url}/actions/runs/${context.runId}`
+              });
+              return;
+            }
+
+            if (!review || review.trim() === '') {
               console.log('⚠️ レビュー結果が空のため、コメントをスキップします');
               await github.rest.issues.createComment({
                 issue_number: context.issue.number,
