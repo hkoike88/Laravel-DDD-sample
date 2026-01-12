@@ -13,6 +13,7 @@ DDD アーキテクチャに基づく実装パターンも含む。
 - Laravel の規約に従う（ただし DDD レイヤーの制約を優先）
 - 静的解析ツール（PHPStan / Larastan）でレベル 6 以上をパス
 - PHP 8.2+ の機能を積極的に活用
+- **すべてのPHPファイルに厳密モード（`declare(strict_types=1);`）を付与する**
 
 ---
 
@@ -98,6 +99,30 @@ $n = $customer->name();
 
 ## 型宣言
 
+### 厳密モード（strict_types）の使用
+
+**必須**: すべてのPHPファイルの先頭に `declare(strict_types=1);` を記述する。
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+// ...
+```
+
+**理由**:
+- 型の厳密なチェックにより、予期しない型変換を防止
+- PHPStan との相性が良く、型推論が正確になる
+- 型安全性の向上により、バグの早期発見が可能
+
+**注意事項**:
+- `<?php` タグの直後に記述する（空行を挟む）
+- namespace 宣言の前に記述する
+- すべてのPHPファイルに適用する（テストファイルを含む）
+
 ### 必須
 
 - すべてのメソッド引数に型宣言
@@ -106,6 +131,10 @@ $n = $customer->name();
 
 ```php
 // ✓ Good
+<?php
+
+declare(strict_types=1);
+
 final class Order
 {
     public function __construct(
@@ -176,6 +205,10 @@ class BaseController { }  // final なし
 不変オブジェクトには `readonly` を使用。
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 // ✓ DTO は readonly class
 final readonly class OrderDTO
 {
@@ -201,6 +234,10 @@ final readonly class PlaceOrderCommand
 
 ```php
 // ✓ Good: コンストラクタプロモーション
+<?php
+
+declare(strict_types=1);
+
 final class Order
 {
     public function __construct(
@@ -236,6 +273,10 @@ final class Order
 ### Entity
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 final class Order
 {
     /** @var list<object> */
@@ -283,6 +324,10 @@ final class Order
 ### ValueObject
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 final class Money
 {
     public function __construct(
@@ -342,6 +387,10 @@ final class Money
 ### Repository Interface
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 interface OrderRepositoryInterface
 {
     /**
@@ -378,6 +427,10 @@ interface OrderRepositoryInterface
 ### UseCase (Command)
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 final readonly class PlaceOrderCommand
 {
     public function __construct(
@@ -413,6 +466,10 @@ final class PlaceOrderHandler
 ### DTO
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 final readonly class OrderDTO
 {
     public function __construct(
@@ -442,6 +499,10 @@ final readonly class OrderDTO
 ### Repository 実装
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 final class EloquentOrderRepository implements OrderRepositoryInterface
 {
     public function find(OrderId $id): Order
@@ -488,6 +549,10 @@ final class EloquentOrderRepository implements OrderRepositoryInterface
 ### Eloquent Model
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 /**
  * @property int $id
  * @property int $customer_id
@@ -534,6 +599,10 @@ final class OrderRecord extends Model
 PHP 8.1+ の enum を使用する場合、`$casts` で自動変換が可能。
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 /**
  * @property int $id
  * @property string $title
@@ -575,6 +644,10 @@ $book->save();              // 'ebook' として保存
 ### Controller
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 final class OrderController extends Controller
 {
     public function __construct(
@@ -613,6 +686,10 @@ final class OrderController extends Controller
 ### FormRequest
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 final class PlaceOrderRequest extends FormRequest
 {
     public function authorize(): bool
@@ -633,6 +710,10 @@ final class PlaceOrderRequest extends FormRequest
 ### Resource
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 final class OrderResource extends JsonResource
 {
     public function toArray(Request $request): array
@@ -655,6 +736,10 @@ final class OrderResource extends JsonResource
 ### 例外クラスの分類
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 // Domain 例外（業務ルール違反）
 namespace Packages\Common\Domain\Exceptions;
 
@@ -764,6 +849,7 @@ $order = $this->orderRepository->find($id);
 - [ ] `exit()`, `die()` の使用禁止
 - [ ] `@` によるエラー抑制禁止
 - [ ] `eval()` の使用禁止
+- [ ] **厳密モード（`declare(strict_types=1);`）の省略禁止**
 
 ---
 
