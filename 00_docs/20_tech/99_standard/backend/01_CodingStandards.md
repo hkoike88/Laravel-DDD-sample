@@ -539,8 +539,244 @@ final class EloquentOrderRepository implements OrderRepositoryInterface
 
 **ルール:**
 - `final class` を使用
-- `toDomain()` で Eloquent → Domain 変換
+- `toDomain()` で Eloquent → Domain 変換（単一エンティティ）
 - `save()` で Domain → Eloquent 変換
+
+### Repository - 配列返却パターン
+
+複数のエンティティを配列で返却する場合。
+
+```php
+<?php
+
+declare(strict_types=1);
+
+final class EloquentBookRepository implements BookRepositoryInterface
+{
+    /**
+     * ISBN で蔵書を検索（複本対応）
+     *
+     * @param  ISBN  $isbn  ISBN
+     * @return list<Book> 蔵書エンティティのリスト
+     */
+    public function findByIsbn(ISBN $isbn): array
+    {
+        $records = BookRecord::where('isbn', $isbn->value())->get();
+
+        return array_values($records->map(fn (BookRecord $record) => $this->toDomain($record))->all());
+    }
+
+    private function toDomain(BookRecord $record): Book
+    {
+        return Book::reconstruct(
+            id: BookId::fromString($record->id),
+            title: $record->title,
+            author: $record->author,
+            isbn: $record->isbn !== null ? ISBN::fromString($record->isbn) : null,
+            publisher: $record->publisher,
+            publishedYear: $record->published_year,
+            genre: $record->genre,
+            status: BookStatus::from($record->status),
+            registeredBy: $record->registered_by,
+            registeredAt: $record->registered_at !== null
+                ? \DateTimeImmutable::createFromInterface($record->registered_at)
+                : null,
+        );
+    }
+}
+```
+
+**ルール:**
+- `array_values()` でインデックスをリセット
+- `map()` で各レコードを `toDomain()` でドメインモデルに変換
+- 返却型は `list<Entity>` の配列
+
+### Repository - Collection DTO 返却パターン
+
+ページネーション付きコレクションを返却する場合、Collection DTO を使用する。
+
+```php
+<?php
+
+declare(strict_types=1);
+
+final class EloquentBookRepository implements BookRepositoryInterface
+{
+    /**
+     * 条件で蔵書を検索
+     *
+     * @param  BookSearchCriteria  $criteria  検索条件
+     * @return BookCollection 検索結果コレクション
+     */
+    public function search(BookSearchCriteria $criteria): BookCollection
+    {
+        $query = BookRecord::query();
+
+        $this->applySearchCriteria($query, $criteria);
+
+        // 総件数を取得
+        $totalCount = $query->count();
+
+        if ($totalCount === 0) {
+            return BookCollection::empty($criteria->pageSize);
+        }
+
+        // ソートを適用
+        $sortField = $this->mapSortField($criteria->sortField);
+        $query->orderBy($sortField, $criteria->sortDirection);
+
+        // ページネーションを適用
+        $records = $query
+            ->offset($criteria->offset())
+            ->limit($criteria->pageSize)
+            ->get();
+
+        // ドメインモデルに変換
+        $items = array_values($records->map(fn (BookRecord $record) => $this->toDomain($record))->all());
+
+        // 総ページ数を計算
+        $totalPages = (int) ceil($totalCount / $criteria->pageSize);
+
+        return new BookCollection(
+            items: $items,
+            totalCount: $totalCount,
+            currentPage: $criteria->page,
+            totalPages: $totalPages,
+            pageSize: $criteria->pageSize,
+        );
+    }
+
+    /**
+     * 検索条件をクエリに適用
+     *
+     * @param  Builder<BookRecord>  $query  クエリビルダー
+     * @param  BookSearchCriteria  $criteria  検索条件
+     */
+    private function applySearchCriteria(Builder $query, BookSearchCriteria $criteria): void
+    {
+        // タイトル（部分一致）
+        if ($criteria->title !== null) {
+            $query->where('title', 'LIKE', '%'.$criteria->title.'%');
+        }
+
+        // 著者（部分一致）
+        if ($criteria->author !== null) {
+            $query->where('author', 'LIKE', '%'.$criteria->author.'%');
+        }
+
+        // ISBN（完全一致）
+        if ($criteria->isbn !== null) {
+            $query->where('isbn', $criteria->isbn);
+        }
+    }
+
+    private function toDomain(BookRecord $record): Book
+    {
+        return Book::reconstruct(/* ... */);
+    }
+}
+```
+
+**ルール:**
+- ページネーション情報（総件数、総ページ数等）は Repository で計算
+- 空のコレクションは DTO のファクトリメソッド `empty()` を使用
+- ソート条件も Repository で適用
+- クエリ条件の適用は private メソッド `applySearchCriteria()` に分離
+
+### Application 層 - Collection DTO
+
+ページネーション付きコレクションを表現する DTO。
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Packages\Domain\Book\Application\DTO;
+
+use Packages\Domain\Book\Domain\Model\Book;
+
+/**
+ * 蔵書コレクション
+ *
+ * 検索結果の蔵書リストとページネーション情報を保持。
+ */
+final readonly class BookCollection
+{
+    /**
+     * コンストラクタ
+     *
+     * @param  list<Book>  $items  蔵書リスト
+     * @param  int  $totalCount  総件数
+     * @param  int  $currentPage  現在のページ番号
+     * @param  int  $totalPages  総ページ数
+     * @param  int  $pageSize  ページサイズ
+     */
+    public function __construct(
+        public array $items,
+        public int $totalCount,
+        public int $currentPage,
+        public int $totalPages,
+        public int $pageSize,
+    ) {}
+
+    /**
+     * 空のコレクションを生成
+     *
+     * @param  int  $pageSize  ページサイズ
+     */
+    public static function empty(int $pageSize = 20): self
+    {
+        return new self(
+            items: [],
+            totalCount: 0,
+            currentPage: 1,
+            totalPages: 0,
+            pageSize: $pageSize,
+        );
+    }
+
+    /**
+     * コレクションが空か判定
+     */
+    public function isEmpty(): bool
+    {
+        return count($this->items) === 0;
+    }
+
+    /**
+     * 次のページが存在するか判定
+     */
+    public function hasNextPage(): bool
+    {
+        return $this->currentPage < $this->totalPages;
+    }
+
+    /**
+     * 前のページが存在するか判定
+     */
+    public function hasPreviousPage(): bool
+    {
+        return $this->currentPage > 1;
+    }
+
+    /**
+     * 蔵書の件数を取得
+     */
+    public function count(): int
+    {
+        return count($this->items);
+    }
+}
+```
+
+**ルール:**
+- `readonly` クラスを使用（イミュータブル）
+- 命名は `{Name}Collection`
+- ページネーション情報を含む
+- ヘルパーメソッド（`isEmpty()`, `hasNextPage()` 等）を提供
+- ファクトリメソッド `empty()` を提供
+- Application 層の DTO ディレクトリに配置
 
 ---
 
