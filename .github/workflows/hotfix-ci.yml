@@ -115,8 +115,10 @@ jobs:
           fi
 
           # JSON 検証
-          if ! jq empty composer-audit-report.json 2>/dev/null; then
-            echo "⚠️ JSON パースエラー。composer audit の出力を確認してください"
+          if ! ERROR_MSG=$(jq empty composer-audit-report.json 2>&1); then
+            echo "⚠️ JSON パースエラー:"
+            echo "$ERROR_MSG"
+            echo "--- composer audit の出力 ---"
             cat composer-audit-report.json
             exit 0
           fi

@@ -110,6 +110,31 @@ Claude は以下の観点でコードをレビューします：
 - 人間によるレビューも必ず実施してください
 - Claude のレビューは参考として活用してください
 
+### コスト管理
+
+#### 月額予算の設定
+Anthropic Console で以下を設定することを推奨します：
+
+1. **Usage Limits**: 月額上限を設定（例: $50/month）
+2. **Notification**: 80%到達時にメール通知
+3. **Hard Limit**: 100%到達時に API を自動停止
+
+#### コスト削減策
+
+1. **差分サイズ制限**: 大規模 PR は分割を推奨（現在: 50KB、`.github/workflows/pr-review.yml` の `MAX_DIFF_SIZE` で調整可能）
+2. **レビュー対象の絞り込み**: `paths-ignore` で不要なファイルを除外
+   ```yaml
+   on:
+     pull_request:
+       branches:
+         - main
+       paths-ignore:
+         - '**.md'
+         - 'docs/**'
+         - '99_reviews/**'
+   ```
+3. **手動トリガー**: 緊急時は `.github/workflows/pr-review.yml` の `on` を `workflow_dispatch` に変更
+
 ## トラブルシューティング
 
 ### レビューコメントが投稿されない

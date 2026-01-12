@@ -19,6 +19,12 @@ NC='\033[0m' # No Color
 # main/master ブランチへの直接コミット禁止
 # ========================================
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+if [ $? -ne 0 ] || [ -z "$BRANCH" ] || [ "$BRANCH" = "HEAD" ]; then
+    echo -e "${YELLOW}⚠️ ブランチ名を取得できませんでした（detached HEAD 状態の可能性）${NC}"
+    echo "現在のコミットを確認してください"
+    exit 0
+fi
+
 if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
     echo -e "${RED}========================================${NC}"
     echo -e "${RED}エラー: main/master ブランチへの直接コミットは禁止されています${NC}"
