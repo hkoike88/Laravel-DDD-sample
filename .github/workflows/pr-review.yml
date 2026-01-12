@@ -1,3 +1,6 @@
+# Claude レビューを一時的に無効化する場合は、以下の on を workflow_dispatch に変更してください
+# on: workflow_dispatch
+
 name: PR Review by Claude
 
 on:
@@ -112,14 +115,14 @@ jobs:
           - [その他の気づき]
           PROMPT_EOF
 
-          # Claude API を呼び出し
+          # Claude API を呼び出し (Claude 4.5 Sonnet - 2026年1月時点の最新)
           echo "🤖 Claude API を呼び出し中..."
           RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
             -d "{
-              \"model\": \"claude-3-5-sonnet-20241022\",
+              \"model\": \"claude-sonnet-4-5-20250929\",
               \"max_tokens\": 4096,
               \"messages\": [{
                 \"role\": \"user\",

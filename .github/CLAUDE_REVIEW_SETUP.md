@@ -99,8 +99,10 @@ Claude は以下の観点でコードをレビューします：
 
 ### API 使用料
 - Claude API は従量課金制です
-- モデル: `claude-3-5-sonnet-20241022`
+- モデル: `claude-sonnet-4-5-20250929` (Claude 4.5 Sonnet - 2026年1月時点の最新)
+- 料金: $3 input / $15 output per million tokens
 - 最大トークン数: 4096
+- クレジット残高が不足している場合、レビューは実行されません
 
 ### レビューの制約
 - Claude はコンテキストに基づいてレビューしますが、完全ではありません
@@ -138,10 +140,26 @@ Claude は以下の観点でコードをレビューします：
 別の Claude モデルを使用する場合、`model` パラメータを変更してください：
 
 ```yaml
-"model": "claude-3-5-sonnet-20241022",  # 最新の Sonnet
+"model": "claude-sonnet-4-5-20250929",  # Claude 4.5 Sonnet (推奨・バランス型)
 # または
-"model": "claude-3-opus-20240229",      # より高精度
+"model": "claude-opus-4-5-20251101",    # Claude 4.5 Opus (最高精度・高コスト)
+# または
+"model": "claude-haiku-4-5-20251001",   # Claude 4.5 Haiku (最速・最低コスト)
 ```
+
+**利用可能なモデル (2026年1月時点)**:
+
+#### Claude 4.5 シリーズ (最新)
+- `claude-opus-4-5-20251101`: 最高精度、コーディング・エージェントに最適 ($5 input / $25 output)
+- `claude-sonnet-4-5-20250929`: バランス型、本番環境推奨 ($3 input / $15 output)
+- `claude-haiku-4-5-20251001`: 最速・最低コスト ($1 input / $5 output)
+
+#### 旧モデル (互換性維持)
+- `claude-opus-4-1`: 2025年8月版
+- `claude-sonnet-4`: 2025年5月版
+- `claude-3-5-sonnet-20241022`: Claude 3.5世代
+
+**推奨**: コストと性能のバランスから `claude-sonnet-4-5-20250929` を推奨します。
 
 ### 最大トークン数の変更
 

@@ -267,6 +267,8 @@ main ブランチへのプルリクエスト作成時に、**Claude が自動的
 
 **セットアップ**: [.github/CLAUDE_REVIEW_SETUP.md](./.github/CLAUDE_REVIEW_SETUP.md) を参照してください
 
+**⚠️ 注意**: Claude API は従量課金制です。クレジット残高が不足している場合、レビューは実行されません。無効化する場合は `.github/workflows/pr-review.yml` のコメントを参照してください。
+
 ### GitHub Actions ワークフロー
 
 プロジェクトには以下の自動化ワークフローが設定されています：
