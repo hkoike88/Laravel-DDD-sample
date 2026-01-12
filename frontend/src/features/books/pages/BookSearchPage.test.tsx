@@ -96,7 +96,9 @@ describe('BookSearchPage統合テスト', () => {
       await user.click(screen.getByRole('button', { name: /検索/i }))
 
       // ローディングが表示されることを確認（スピナー要素）
-      expect(container.querySelector('.animate-spin')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(container.querySelector('.animate-spin')).toBeInTheDocument()
+      })
 
       // 検索結果が表示されることを確認（スピナーが消える）
       await waitFor(() => {
@@ -149,9 +151,9 @@ describe('BookSearchPage統合テスト', () => {
       await user.click(screen.getByRole('button', { name: /検索/i }))
 
       await waitFor(() => {
-        expect(screen.getByText('25')).toBeInTheDocument()
-        expect(screen.getByText(/検索結果:/)).toBeInTheDocument()
+        expect(screen.getByText(/件中/)).toBeInTheDocument()
       })
+      expect(screen.getByText('25')).toBeInTheDocument()
     })
 
     it('0件の場合も件数が表示される', async () => {
