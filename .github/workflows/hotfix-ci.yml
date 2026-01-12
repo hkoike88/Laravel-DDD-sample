@@ -1,0 +1,188 @@
+# ===================================
+# Hotfix ブランチ CI ワークフロー
+# ===================================
+# hotfix/* ブランチへのプッシュ時に静的解析とテストを実行
+#
+# 用途: 本番環境の緊急修正時に品質を保証
+# 対象: hotfix/* ブランチ（パターンは調整可能）
+# 特徴: 本番リリース前の最終チェック
+
+name: Hotfix Branch CI
+
+on:
+  push:
+    branches:
+      - 'hotfix/**'
+      - 'hotfix/*'
+  pull_request:
+    branches:
+      - 'hotfix/**'
+      - 'hotfix/*'
+
+env:
+  PHP_VERSION: '8.3'
+  NODE_VERSION: '20'
+
+jobs:
+  # ----------------------------------------
+  # Backend CI
+  # ----------------------------------------
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: secret
+          MYSQL_DATABASE: library_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_mysql
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Create cache directories
+        run: |
+          mkdir -p bootstrap/cache
+          chmod -R 775 bootstrap/cache
+          mkdir -p storage/framework/{sessions,views,cache}
+          chmod -R 775 storage
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Setup .env
+        run: |
+          cp .env.testing.example .env.testing
+          cp .env.testing .env
+
+      - name: Generate application key
+        run: php artisan key:generate --env=testing
+
+      - name: PHPStan
+        run: ./vendor/bin/phpstan analyse --memory-limit=512M --no-progress
+
+      - name: Pint
+        run: ./vendor/bin/pint --test
+
+      - name: Run tests
+        run: ./vendor/bin/pest
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: library_test
+          DB_USERNAME: root
+          DB_PASSWORD: secret
+
+      # Hotfix は本番リリース前のため、セキュリティチェックも実行
+      - name: Security Audit
+        run: composer audit --format=json > composer-audit-report.json 2>&1 || true
+
+      - name: Check Critical/High vulnerabilities
+        run: |
+          # ファイル存在チェック
+          if [ ! -f composer-audit-report.json ]; then
+            echo "⚠️ composer audit レポートが生成されませんでした"
+            exit 0
+          fi
+
+          # JSON 検証
+          if ! ERROR_MSG=$(jq empty composer-audit-report.json 2>&1); then
+            echo "⚠️ JSON パースエラー:"
+            echo "$ERROR_MSG"
+            echo "--- composer audit の出力 ---"
+            cat composer-audit-report.json
+            exit 0
+          fi
+
+          # 脆弱性チェック
+          if grep -qE '"severity":[[:space:]]*"critical"' composer-audit-report.json || \
+             grep -qE '"severity":[[:space:]]*"high"' composer-audit-report.json; then
+            echo "❌ Critical または High の脆弱性が見つかりました"
+            cat composer-audit-report.json
+            exit 1
+          fi
+          echo "✅ Critical/High の脆弱性はありません"
+
+  # ----------------------------------------
+  # Frontend CI
+  # ----------------------------------------
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Prettier
+        run: npm run format:check
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm run test:run
+
+      # Hotfix は本番リリース前のため、セキュリティチェックも実行
+      - name: Security Audit
+        id: npm-audit
+        run: |
+          npm audit --json > npm-audit-report.json 2>&1 || true
+          CRITICAL=$(cat npm-audit-report.json | jq '.metadata.vulnerabilities.critical // 0')
+          HIGH=$(cat npm-audit-report.json | jq '.metadata.vulnerabilities.high // 0')
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "❌ Critical ($CRITICAL) または High ($HIGH) の脆弱性が見つかりました"
+            npm audit
+            exit 1
+          fi
+          echo "✅ Critical/High の脆弱性はありません"

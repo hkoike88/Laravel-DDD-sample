@@ -169,13 +169,23 @@ laravel-ddd-library/
 cp .env.example .env
 ```
 
-### 2. サービスの起動
+### 2. Git フックの設定
+
+```bash
+git config core.hooksPath .githooks
+```
+
+このコマンドで以下の Git フックが有効化されます：
+- **pre-commit**: main/master への直接コミット禁止、静的解析、セキュリティスキャン
+- **pre-push**: main/master への直接プッシュ禁止
+
+### 3. サービスの起動
 
 ```bash
 make up
 ```
 
-### 3. 起動確認
+### 4. 起動確認
 
 ```bash
 docker compose ps
@@ -183,13 +193,81 @@ docker compose ps
 
 すべてのサービスが「Running」状態であることを確認してください。
 
-### 4. 初期データ投入（任意）
+### 5. 初期データ投入（任意）
 
 ```bash
 make migrate     # マイグレーション
 make seed-books  # サンプル蔵書データ
 ```
 
+---
+
+## ブランチ戦略
+
+本プロジェクトでは、**main ブランチへの直接コミット・プッシュを禁止**しています。
+
+### ブランチ構成
+
+```
+main (本番相当)
+  ↑
+develop (開発統合)
+  ↑
+feature/xxx (機能開発)
+```
+
+### 開発フロー
+
+1. **feature ブランチを作成**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **開発・コミット**
+   ```bash
+   git add .
+   git commit -m "your message"
+   ```
+
+   ※ pre-commit フックで自動的に以下がチェックされます：
+   - 静的解析（PHPStan, ESLint, TypeScript）
+   - コードスタイル（Pint, Prettier）
+   - セキュリティスキャン（Composer Audit, npm Audit）
+
+3. **feature ブランチをプッシュ**
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+4. **GitHub でプルリクエストを作成**
+   - `feature/xxx` → `develop` または `main`
+   - レビュー後にマージ
+
+### Git フック
+
+プロジェクトには以下の Git フックが設定されています：
+
+| フック | 役割 |
+|--------|------|
+| **pre-commit** | ・main/master への直接コミット禁止<br>・静的解析実行（PHPStan, ESLint, TypeScript）<br>・コードフォーマットチェック（Pint, Prettier）<br>・セキュリティスキャン（Critical/High のみ） |
+| **pre-push** | ・main/master への直接プッシュ禁止<br>・GitHub でのプルリクエスト作成を推奨 |
+
+※ フックを有効化するには `git config core.hooksPath .githooks` を実行してください
+
+### GitHub Actions ワークフロー
+
+プロジェクトには以下の自動化ワークフローが設定されています：
+
+| ワークフロー | トリガー | 内容 |
+|------------|---------|------|
+| **CI** | main/develop へのプッシュ・PR | 静的解析、テスト実行 |
+| **Feature CI** | feature/* へのプッシュ・PR | 静的解析、テスト実行（開発中のブランチで早期検出） |
+| **Hotfix CI** | hotfix/* へのプッシュ・PR | 静的解析、テスト実行、**セキュリティチェック**（本番緊急修正用） |
+| **Security Scan** | main/develop へのプッシュ・PR<br>毎週月曜 9:00 JST | 依存パッケージの脆弱性スキャン |
+
+**Note**:
+- Feature CI / Hotfix CI は条件を柔軟に変更できるよう独立したファイルとして管理
+- Hotfix CI は本番リリース前のため、セキュリティチェックを含む厳格なチェックを実行
 ---
 
 ## アクセス
