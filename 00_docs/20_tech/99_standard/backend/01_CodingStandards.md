@@ -663,16 +663,19 @@ final class OrderController extends Controller
         return response()->json(OrderResource::make($order));
     }
 
+    /**
+     * 注文を確定する
+     *
+     * 例外は ExceptionHandler で自動的に処理される
+     * - DomainException → 400 Bad Request
+     * - その他の ApplicationException → 適切な HTTP ステータスコード
+     */
     public function place(PlaceOrderRequest $request, int $orderId): JsonResponse
     {
-        try {
-            $command = new PlaceOrderCommand($orderId);
-            $this->placeOrderHandler->handle($command);
+        $command = new PlaceOrderCommand($orderId);
+        $this->placeOrderHandler->handle($command);
 
-            return response()->json(['status' => 'ok']);
-        } catch (DomainException $e) {
-            return response()->json(['error' => $e->getMessage()], 400);
-        }
+        return response()->json(['status' => 'ok']);
     }
 }
 ```
@@ -681,7 +684,60 @@ final class OrderController extends Controller
 - `final class` を使用
 - コンストラクタで Handler を注入
 - ビジネスロジックを書かない
-- 例外ハンドリングは Controller または Handler で
+- **例外処理は原則として ExceptionHandler で自動処理（Controller で try-catch を使わない）**
+- メソッドは短く保つ（目安: 20行以内）
+
+**例外処理の方針:**
+
+原則として、Controller では例外をキャッチせず、`ExceptionHandler`（`app/Exceptions/Handler.php`）で自動処理する。
+
+```php
+// ✓ Good: 例外を ExceptionHandler に委譲
+public function place(PlaceOrderRequest $request, int $orderId): JsonResponse
+{
+    // 例外は ExceptionHandler で自動的に処理される
+    $command = new PlaceOrderCommand($orderId);
+    $this->placeOrderHandler->handle($command);
+
+    return response()->json(['status' => 'ok']);
+}
+```
+
+**例外的なケース:**
+
+以下の場合のみ、Controller で try-catch を使用する：
+
+1. **リソースクリーンアップが必要な場合**
+   ```php
+   $lock = $this->acquireLock($orderId);
+   try {
+       $command = new PlaceOrderCommand($orderId);
+       $this->placeOrderHandler->handle($command);
+       return response()->json(['status' => 'ok']);
+   } finally {
+       $lock->release(); // 必ずロック解放
+   }
+   ```
+
+2. **一時ファイルなどの確実な削除が必要な場合**
+   ```php
+   $tempFile = $this->createTempFile($request->file('upload'));
+   try {
+       $command = new ProcessFileCommand($tempFile);
+       $result = $this->handler->handle($command);
+       return response()->json(['data' => $result]);
+   } finally {
+       unlink($tempFile); // 必ず一時ファイルを削除
+   }
+   ```
+
+**理由:**
+- 例外処理の一元化により、一貫性が保たれる
+- Controller の責務が明確になる（HTTP リクエスト/レスポンスの処理に集中）
+- エラーレスポンス形式の統一が容易
+- ログ記録の一元管理が可能
+
+詳細は [`07_ErrorHandling.md`](./07_ErrorHandling.md) の「Controller での例外処理」セクションを参照
 
 ### FormRequest
 

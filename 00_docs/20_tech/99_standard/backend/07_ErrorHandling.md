@@ -1230,6 +1230,18 @@ final class LoginHandler
 
 ### Controller での例外処理
 
+**基本方針:**
+
+Controller では、**原則として例外をキャッチせず**、`ExceptionHandler`（`app/Exceptions/Handler.php`）で自動処理する。
+
+**理由:**
+- 例外処理の一元化により、一貫性が保たれる
+- Controller の責務が明確になる（HTTP リクエスト/レスポンスの処理に集中）
+- エラーレスポンス形式の統一が容易
+- ログ記録の一元管理が可能
+
+**実装例:**
+
 ```php
 <?php
 
@@ -1253,7 +1265,10 @@ final class AuthController extends Controller
     /**
      * ログイン
      *
-     * 例外は Handler で自動的に処理される
+     * 例外は ExceptionHandler で自動的に処理される
+     * - InvalidCredentialsException → 401 Unauthorized
+     * - AccountLockedException → 401 Unauthorized
+     * - その他の例外 → 適切な HTTP ステータスコードとエラーレスポンス
      */
     public function login(LoginRequest $request): JsonResponse
     {
@@ -1274,6 +1289,213 @@ final class AuthController extends Controller
     }
 }
 ```
+
+**例外的なケース:**
+
+以下の場合のみ、Controller で try-catch または try-finally を使用する：
+
+#### 1. リソースクリーンアップが必要な場合
+
+```php
+<?php
+
+declare(strict_types=1);
+
+final class OrderController extends Controller
+{
+    /**
+     * 注文を確定する
+     *
+     * 分散ロックを使用するため、finally でロック解放を保証
+     */
+    public function place(PlaceOrderRequest $request, int $orderId): JsonResponse
+    {
+        $lock = $this->lockService->acquireLock("order:{$orderId}");
+
+        try {
+            $command = new PlaceOrderCommand($orderId);
+            $this->placeOrderHandler->handle($command);
+
+            return response()->json(['status' => 'ok']);
+        } finally {
+            $lock->release(); // 例外発生時も必ずロック解放
+        }
+    }
+}
+```
+
+#### 2. 一時ファイルなどの確実な削除が必要な場合
+
+```php
+<?php
+
+declare(strict_types=1);
+
+final class FileUploadController extends Controller
+{
+    /**
+     * ファイルをアップロードして処理
+     *
+     * 一時ファイルを確実に削除するため finally を使用
+     */
+    public function upload(UploadFileRequest $request): JsonResponse
+    {
+        $tempFile = $this->createTempFile($request->file('upload'));
+
+        try {
+            $command = new ProcessFileCommand($tempFile);
+            $result = $this->handler->handle($command);
+
+            return response()->json(['data' => $result]);
+        } finally {
+            if (file_exists($tempFile)) {
+                unlink($tempFile); // 例外発生時も必ず一時ファイルを削除
+            }
+        }
+    }
+}
+```
+
+**判断フロー:**
+
+```
+Controller で例外処理が必要？
+  │
+  ├─ リソースクリーンアップ（ロック解放、一時ファイル削除等）が必要？
+  │   ├─ はい → try-finally を使用してリソースを確実に解放
+  │   └─ いいえ → 次へ
+  │
+  └─ その他の理由で例外をキャッチしたい？
+      ├─ はい → ❌ 不適切。ExceptionHandler で処理すべき
+      └─ いいえ → ✓ ExceptionHandler で自動処理（推奨）
+```
+
+**❌ Controller で try-catch を使うべきでないケース:**
+
+1. **特定の例外に対して異なるレスポンスを返す**
+   ```php
+   // ❌ Bad: Controller で例外ごとに異なるレスポンスを返す
+   public function place(PlaceOrderRequest $request, int $orderId): JsonResponse
+   {
+       try {
+           $command = new PlaceOrderCommand($orderId);
+           $this->placeOrderHandler->handle($command);
+           return response()->json(['status' => 'ok']);
+       } catch (OutOfStockException $e) {
+           return response()->json(['error' => '在庫不足'], 400);
+       } catch (InvalidOrderException $e) {
+           return response()->json(['error' => '注文が無効'], 400);
+       }
+   }
+   ```
+
+   **理由:** ExceptionHandler で例外タイプごとに処理を分岐すべき。Controller で実装すると、同じ例外タイプが異なる Controller で異なる処理をされる可能性がある。
+
+   **正しい実装:**
+   ```php
+   // ✓ Good: ExceptionHandler で統一的に処理
+   // app/Exceptions/Handler.php
+   public function render($request, Throwable $e): Response
+   {
+       if ($e instanceof OutOfStockException) {
+           return response()->json([
+               'error_code' => $e->getErrorCode(),
+               'message' => '在庫不足です',
+           ], 400);
+       }
+
+       if ($e instanceof InvalidOrderException) {
+           return response()->json([
+               'error_code' => $e->getErrorCode(),
+               'message' => '注文が無効です',
+           ], 400);
+       }
+
+       // その他の例外処理...
+   }
+   ```
+
+2. **エラー発生時に追加のログを記録する**
+   ```php
+   // ❌ Bad: Controller でログ記録
+   public function place(PlaceOrderRequest $request, int $orderId): JsonResponse
+   {
+       try {
+           $command = new PlaceOrderCommand($orderId);
+           $this->placeOrderHandler->handle($command);
+           return response()->json(['status' => 'ok']);
+       } catch (CriticalException $e) {
+           Log::critical('Critical error occurred', ['order_id' => $orderId]);
+           throw $e; // 再スロー
+       }
+   }
+   ```
+
+   **理由:** ExceptionHandler でログ記録すべき。例外クラスにコンテキスト情報を持たせることで対応可能。
+
+   **正しい実装:**
+   ```php
+   // ✓ Good: ExceptionHandler でログ記録
+   // app/Exceptions/Handler.php
+   public function report(Throwable $e): void
+   {
+       if ($e instanceof CriticalException) {
+           Log::critical('Critical error occurred', [
+               'exception' => get_class($e),
+               'message' => $e->getMessage(),
+               'context' => $e->getContext(), // 例外にコンテキスト情報を持たせる
+           ]);
+       }
+
+       parent::report($e);
+   }
+   ```
+
+**重要な注意点:**
+
+1. **例外の再スロー**
+   - Controller 内で try-catch を使う場合、基本的に例外を再スローすること
+   - 握りつぶすと、ExceptionHandler でのログ記録が行われない
+
+   ```php
+   // ❌ Bad: 例外を握りつぶす
+   try {
+       $this->handler->handle($command);
+   } catch (Exception $e) {
+       // ログも記録せず、例外も再スローしない
+       return response()->json(['error' => 'エラーが発生しました'], 500);
+   }
+
+   // ✓ Good: finally でリソース解放、例外は再スロー
+   try {
+       $this->handler->handle($command);
+   } finally {
+       $lock->release(); // リソース解放のみ
+   }
+   // 例外は自動的に ExceptionHandler に伝播
+   ```
+
+2. **FormRequest のバリデーション例外**
+   - Laravel が自動的に処理する（422 Unprocessable Entity）
+   - 開発者が意識する必要はない
+
+   ```php
+   // ✓ Good: バリデーションエラーは Laravel が自動処理
+   public function store(CreateBookRequest $request): JsonResponse
+   {
+       // FormRequest でバリデーション失敗時は自動的に 422 レスポンス
+       $command = new CreateBookCommand($request->validated());
+       $book = $this->handler->handle($command);
+
+       return response()->json(['data' => new BookResource($book)], 201);
+   }
+   ```
+
+3. **ExceptionHandler の実装品質**
+   - この方針を採用する場合、ExceptionHandler の実装品質が極めて重要
+   - すべての例外タイプを適切に処理すること
+   - ログ記録を確実に行うこと
+   - エラーレスポンス形式を統一すること
 
 ---
 

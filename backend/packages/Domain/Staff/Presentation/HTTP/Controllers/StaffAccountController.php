@@ -19,11 +19,6 @@ use Packages\Domain\Staff\Application\UseCases\Queries\GetStaffDetail\GetStaffDe
 use Packages\Domain\Staff\Application\UseCases\Queries\GetStaffDetail\GetStaffDetailQuery;
 use Packages\Domain\Staff\Application\UseCases\Queries\GetStaffList\GetStaffListHandler;
 use Packages\Domain\Staff\Application\UseCases\Queries\GetStaffList\GetStaffListQuery;
-use Packages\Domain\Staff\Domain\Exceptions\DuplicateEmailException;
-use Packages\Domain\Staff\Domain\Exceptions\LastAdminProtectionException;
-use Packages\Domain\Staff\Domain\Exceptions\OptimisticLockException;
-use Packages\Domain\Staff\Domain\Exceptions\SelfRoleChangeException;
-use Packages\Domain\Staff\Domain\Exceptions\StaffNotFoundException;
 use Packages\Domain\Staff\Presentation\HTTP\Requests\CreateStaffRequest;
 use Packages\Domain\Staff\Presentation\HTTP\Requests\UpdateStaffRequest;
 
@@ -79,51 +74,41 @@ class StaffAccountController extends Controller
     /**
      * 職員作成
      *
+     * 例外は ExceptionHandler で自動的に処理される
+     * - DuplicateEmailException → 422 Unprocessable Entity
+     *
      * @param  CreateStaffRequest  $request  バリデーション済みリクエスト
      * @return JsonResponse 職員作成レスポンス
      */
     public function store(CreateStaffRequest $request): JsonResponse
     {
-        try {
-            /** @var array{name: string, email: string, role: string} $validated */
-            $validated = $request->validated();
+        /** @var array{name: string, email: string, role: string} $validated */
+        $validated = $request->validated();
 
-            /** @var \Packages\Domain\Staff\Infrastructure\EloquentModels\StaffRecord $user */
-            $user = $request->user();
+        /** @var \Packages\Domain\Staff\Infrastructure\EloquentModels\StaffRecord $user */
+        $user = $request->user();
 
-            $input = new CreateStaffInput(
-                name: $validated['name'],
-                email: $validated['email'],
-                role: $validated['role'],
-            );
+        $input = new CreateStaffInput(
+            name: $validated['name'],
+            email: $validated['email'],
+            role: $validated['role'],
+        );
 
-            $command = new CreateStaffCommand(
-                input: $input,
-                operatorId: $user->id,
-            );
+        $command = new CreateStaffCommand(
+            input: $input,
+            operatorId: $user->id,
+        );
 
-            $output = $this->createStaffHandler->handle($command);
+        $output = $this->createStaffHandler->handle($command);
 
-            return response()->json($output->toArray(), 201);
-        } catch (DuplicateEmailException $e) {
-            return response()->json([
-                'error' => [
-                    'code' => 'VALIDATION_ERROR',
-                    'message' => '入力内容に誤りがあります',
-                    'details' => [
-                        [
-                            'field' => 'email',
-                            'code' => 'VALIDATION_ERROR',
-                            'message' => 'このメールアドレスは既に登録されています',
-                        ],
-                    ],
-                ],
-            ], 422);
-        }
+        return response()->json($output->toArray(), 201);
     }
 
     /**
      * 職員詳細取得
+     *
+     * 例外は ExceptionHandler で自動的に処理される
+     * - StaffNotFoundException → 404 Not Found
      *
      * @param  Request  $request  リクエスト
      * @param  string  $id  職員ID
@@ -133,27 +118,28 @@ class StaffAccountController extends Controller
      */
     public function show(Request $request, string $id): JsonResponse
     {
-        try {
-            /** @var \Packages\Domain\Staff\Infrastructure\EloquentModels\StaffRecord $user */
-            $user = $request->user();
+        /** @var \Packages\Domain\Staff\Infrastructure\EloquentModels\StaffRecord $user */
+        $user = $request->user();
 
-            $query = new GetStaffDetailQuery(
-                staffId: $id,
-                operatorId: $user->id,
-            );
+        $query = new GetStaffDetailQuery(
+            staffId: $id,
+            operatorId: $user->id,
+        );
 
-            $output = $this->getStaffDetailHandler->handle($query);
+        $output = $this->getStaffDetailHandler->handle($query);
 
-            return response()->json($output->toArray());
-        } catch (StaffNotFoundException $e) {
-            return response()->json([
-                'message' => '指定された職員が見つかりません',
-            ], 404);
-        }
+        return response()->json($output->toArray());
     }
 
     /**
      * 職員更新
+     *
+     * 例外は ExceptionHandler で自動的に処理される
+     * - StaffNotFoundException → 404 Not Found
+     * - OptimisticLockException → 409 Conflict
+     * - SelfRoleChangeException → 422 Unprocessable Entity
+     * - LastAdminProtectionException → 422 Unprocessable Entity
+     * - DuplicateEmailException → 422 Unprocessable Entity
      *
      * @param  UpdateStaffRequest  $request  バリデーション済みリクエスト
      * @param  string  $id  職員ID
@@ -163,57 +149,35 @@ class StaffAccountController extends Controller
      */
     public function update(UpdateStaffRequest $request, string $id): JsonResponse
     {
-        try {
-            /** @var array{name: string, email: string, role: string, updatedAt: string} $validated */
-            $validated = $request->validated();
+        /** @var array{name: string, email: string, role: string, updatedAt: string} $validated */
+        $validated = $request->validated();
 
-            /** @var \Packages\Domain\Staff\Infrastructure\EloquentModels\StaffRecord $user */
-            $user = $request->user();
+        /** @var \Packages\Domain\Staff\Infrastructure\EloquentModels\StaffRecord $user */
+        $user = $request->user();
 
-            $input = new UpdateStaffInput(
-                name: $validated['name'],
-                email: $validated['email'],
-                role: $validated['role'],
-                updatedAt: $validated['updatedAt'],
-            );
+        $input = new UpdateStaffInput(
+            name: $validated['name'],
+            email: $validated['email'],
+            role: $validated['role'],
+            updatedAt: $validated['updatedAt'],
+        );
 
-            $command = new UpdateStaffCommand(
-                staffId: $id,
-                input: $input,
-                operatorId: $user->id,
-            );
+        $command = new UpdateStaffCommand(
+            staffId: $id,
+            input: $input,
+            operatorId: $user->id,
+        );
 
-            $output = $this->updateStaffHandler->handle($command);
+        $output = $this->updateStaffHandler->handle($command);
 
-            return response()->json($output->toArray());
-        } catch (StaffNotFoundException $e) {
-            return response()->json([
-                'message' => '指定された職員が見つかりません',
-            ], 404);
-        } catch (OptimisticLockException $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-            ], 409);
-        } catch (SelfRoleChangeException $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-                'code' => 'SELF_ROLE_CHANGE',
-            ], 422);
-        } catch (LastAdminProtectionException $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-                'code' => 'LAST_ADMIN_PROTECTION',
-            ], 422);
-        } catch (DuplicateEmailException $e) {
-            return response()->json([
-                'message' => 'このメールアドレスは既に使用されています',
-                'code' => 'DUPLICATE_EMAIL',
-            ], 422);
-        }
+        return response()->json($output->toArray());
     }
 
     /**
      * パスワードリセット
+     *
+     * 例外は ExceptionHandler で自動的に処理される
+     * - StaffNotFoundException → 404 Not Found
      *
      * @param  Request  $request  リクエスト
      * @param  string  $id  職員ID
@@ -223,22 +187,16 @@ class StaffAccountController extends Controller
      */
     public function resetPassword(Request $request, string $id): JsonResponse
     {
-        try {
-            /** @var \Packages\Domain\Staff\Infrastructure\EloquentModels\StaffRecord $user */
-            $user = $request->user();
+        /** @var \Packages\Domain\Staff\Infrastructure\EloquentModels\StaffRecord $user */
+        $user = $request->user();
 
-            $command = new ResetPasswordCommand(
-                staffId: $id,
-                operatorId: $user->id,
-            );
+        $command = new ResetPasswordCommand(
+            staffId: $id,
+            operatorId: $user->id,
+        );
 
-            $output = $this->resetPasswordHandler->handle($command);
+        $output = $this->resetPasswordHandler->handle($command);
 
-            return response()->json($output->toArray());
-        } catch (StaffNotFoundException $e) {
-            return response()->json([
-                'message' => '指定された職員が見つかりません',
-            ], 404);
-        }
+        return response()->json($output->toArray());
     }
 }
