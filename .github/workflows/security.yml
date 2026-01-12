@@ -43,7 +43,8 @@ jobs:
           composer audit --format=json > composer-audit-report.json 2>&1 || true
           cat composer-audit-report.json
           # Critical または High の脆弱性がある場合は失敗
-          if grep -qE '"severity":[[:space:]]*"(critical|high)"' composer-audit-report.json 2>/dev/null; then
+          if grep -qE '"severity":[[:space:]]*"critical"' composer-audit-report.json 2>/dev/null || \
+             grep -qE '"severity":[[:space:]]*"high"' composer-audit-report.json 2>/dev/null; then
             echo "Critical or High severity vulnerabilities found!"
             exit 1
           fi
