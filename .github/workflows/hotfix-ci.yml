@@ -124,7 +124,7 @@ jobs:
           fi
 
           # 脆弱性チェック
-          if grep -qE '"severity":\s*"(critical|high)"' composer-audit-report.json; then
+          if grep -qE '"severity":[[:space:]]*"(critical|high)"' composer-audit-report.json; then
             echo "❌ Critical または High の脆弱性が見つかりました"
             cat composer-audit-report.json
             exit 1
