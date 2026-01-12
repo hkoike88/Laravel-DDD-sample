@@ -707,6 +707,133 @@ final class PlaceOrderRequest extends FormRequest
 }
 ```
 
+### FormRequest からの入力取得
+
+**原則: コントローラでは `$request->input()` を直接呼び出さず、FormRequest に定義した型付きメソッド経由で入力値を取得する。**
+
+#### 必須パラメータ
+
+バリデーションで `required` を指定したパラメータは、non-null の型で返すメソッドを定義する。
+
+```php
+<?php
+
+declare(strict_types=1);
+
+final class CreateBookRequest extends FormRequest
+{
+    public function rules(): array
+    {
+        return [
+            'title' => ['required', 'string', 'max:255'],
+        ];
+    }
+
+    /**
+     * タイトルを取得
+     *
+     * @return string タイトル（必ず存在する）
+     */
+    public function title(): string
+    {
+        return $this->input('title');
+    }
+}
+```
+
+#### オプショナルパラメータ
+
+バリデーションで `nullable` を指定したパラメータは、nullable 型で返すメソッドを定義する。
+
+```php
+<?php
+
+declare(strict_types=1);
+
+final class SearchBooksRequest extends FormRequest
+{
+    public function rules(): array
+    {
+        return [
+            'title' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    /**
+     * タイトル検索条件を取得
+     *
+     * @return string|null タイトル（nullの場合は条件指定なし）
+     */
+    public function title(): ?string
+    {
+        return $this->input('title');
+    }
+}
+```
+
+#### デフォルト値付きパラメータ
+
+デフォルト値がある場合は、non-null 型で返し、PHPDoc でデフォルト値を明記する。
+
+```php
+<?php
+
+declare(strict_types=1);
+
+final class ListBooksRequest extends FormRequest
+{
+    public function rules(): array
+    {
+        return [
+            'page' => ['nullable', 'integer', 'min:1'],
+        ];
+    }
+
+    /**
+     * ページ番号を取得
+     *
+     * @return int ページ番号（デフォルト: 1）
+     */
+    public function page(): int
+    {
+        return (int) ($this->input('page') ?? 1);
+    }
+}
+```
+
+#### コントローラでの使用
+
+```php
+// ✓ Good: FormRequest のメソッド経由で取得
+public function store(CreateBookRequest $request): JsonResponse
+{
+    $command = new CreateBookCommand(
+        title: $request->title(),
+        author: $request->author(),
+        isbn: $request->isbn(),
+    );
+    // ...
+}
+
+// ✗ Bad: input() の直接呼び出し
+public function store(CreateBookRequest $request): JsonResponse
+{
+    $command = new CreateBookCommand(
+        title: $request->input('title'),      // ✗ 型安全性が低い
+        author: $request->input('author'),    // ✗ typo のリスクがある
+        isbn: $request->input('isbn'),        // ✗ PHPDoc との整合性が取りにくい
+    );
+    // ...
+}
+```
+
+**ルール:**
+- FormRequest に定義した各入力パラメータに対応する型付きメソッドを作成する
+- メソッド名は入力キー名に対応させる（キャメルケース）
+- 戻り値の型は、バリデーションルールに応じて設定する（required → non-null、nullable → nullable）
+- PHPDoc でパラメータの説明とデフォルト値を明記する
+- コントローラでは `input()` の直接呼び出しを禁止する
+
 ### Resource
 
 ```php
