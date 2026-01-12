@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Packages\Domain\Book\Domain\Exceptions\BookNotFoundException;
 use Packages\Domain\Staff\Domain\Exceptions\DuplicateEmailException;
@@ -18,7 +17,6 @@ use Packages\Domain\Staff\Domain\Exceptions\OptimisticLockException;
 use Packages\Domain\Staff\Domain\Exceptions\SelfRoleChangeException;
 use Packages\Domain\Staff\Domain\Exceptions\StaffNotFoundException;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
@@ -197,7 +195,6 @@ class Handler extends ExceptionHandler
         ], 422);
     }
 
-
     /**
      * バリデーション例外のレスポンス
      */
@@ -239,7 +236,7 @@ class Handler extends ExceptionHandler
     /**
      * モデル未発見例外のレスポンス
      *
-     * @param ModelNotFoundException<\Illuminate\Database\Eloquent\Model> $e
+     * @param  ModelNotFoundException<\Illuminate\Database\Eloquent\Model>  $e
      */
     private function renderModelNotFoundException(ModelNotFoundException $e): JsonResponse
     {

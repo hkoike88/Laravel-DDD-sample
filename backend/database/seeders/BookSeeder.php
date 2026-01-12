@@ -91,7 +91,8 @@ class BookSeeder extends Seeder
             return null;
         }
 
-        return $headers;
+        /** @var array<string> */
+        return array_filter($headers, fn ($h): bool => $h !== null);
     }
 
     /**
@@ -143,6 +144,7 @@ class BookSeeder extends Seeder
      */
     private function getExistingIsbns(): array
     {
+        /** @var array<string, bool> */
         return BookRecord::whereNotNull('isbn')
             ->pluck('isbn')
             ->flip()
@@ -155,7 +157,7 @@ class BookSeeder extends Seeder
      * @param  array<int, string|null>  $row  CSV行データ
      * @param  array<string>  $headers  ヘッダー配列
      * @param  array<string, bool>  $existingIsbns  既存ISBN
-     * @return array{data: array<string, mixed>, isbn: string|null}|null 処理結果（スキップ時はnull）
+     * @return array{data: array<string, string|null>, isbn: string|null}|null 処理結果（スキップ時はnull）
      */
     private function processRow(array $row, array $headers, array $existingIsbns): ?array
     {
@@ -163,12 +165,11 @@ class BookSeeder extends Seeder
             return null;
         }
 
-        /** @var array<string> $validHeaders */
-        $validHeaders = array_filter($headers, fn ($h): bool => $h !== null);
-        $data = array_combine($validHeaders, $row);
+        $data = array_combine($headers, $row);
 
+        /** @var string|null $isbn */
         $isbn = $data['isbn'] ?? null;
-        if ($isbn && isset($existingIsbns[$isbn])) {
+        if ($isbn !== null && $isbn !== '' && isset($existingIsbns[$isbn])) {
             return null;
         }
 

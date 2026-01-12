@@ -122,7 +122,8 @@ class ImportBooksCommand extends Command
             return null;
         }
 
-        return $headers;
+        /** @var array<string> */
+        return array_filter($headers, fn ($h): bool => $h !== null);
     }
 
     /**
@@ -172,6 +173,7 @@ class ImportBooksCommand extends Command
      */
     private function getExistingIsbns(): array
     {
+        /** @var array<string, bool> */
         return BookRecord::whereNotNull('isbn')
             ->pluck('isbn')
             ->flip()
@@ -220,9 +222,7 @@ class ImportBooksCommand extends Command
      */
     private function convertRowToData(array $row, array $headers): array
     {
-        /** @var array<string> $validHeaders */
-        $validHeaders = array_filter($headers, fn ($h): bool => $h !== null);
-        $data = array_combine($validHeaders, $row);
+        $data = array_combine($headers, $row);
 
         /** @var array<string, string> $stringData */
         $stringData = array_map(fn ($v): string => (string) $v, $data);
