@@ -11,7 +11,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
-use Packages\Common\Exceptions\ApplicationException;
 use Packages\Domain\Book\Domain\Exceptions\BookNotFoundException;
 use Packages\Domain\Staff\Domain\Exceptions\DuplicateEmailException;
 use Packages\Domain\Staff\Domain\Exceptions\LastAdminProtectionException;
@@ -20,6 +19,7 @@ use Packages\Domain\Staff\Domain\Exceptions\SelfRoleChangeException;
 use Packages\Domain\Staff\Domain\Exceptions\StaffNotFoundException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Throwable;
@@ -61,25 +61,11 @@ class Handler extends ExceptionHandler
     /**
      * 例外を報告
      *
-     * ApplicationException の場合、独自のログ記録を行う。
-     * その他の例外は親クラスのデフォルト処理を使用。
+     * 親クラスのデフォルト処理を使用。
+     * $dontReport に設定された例外以外は自動的にログに記録される。
      */
     public function report(Throwable $e): void
     {
-        if ($e instanceof ApplicationException) {
-            if ($e->shouldReport()) {
-                Log::channel('error')->log($e->getLogLevel(), $e->getMessage(), [
-                    'code' => $e->getErrorCode(),
-                    'exception' => get_class($e),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'details' => $e->getDetails(),
-                ]);
-            }
-
-            return;
-        }
-
         parent::report($e);
     }
 
@@ -114,9 +100,6 @@ class Handler extends ExceptionHandler
             $e instanceof SelfRoleChangeException => $this->renderSelfRoleChangeException($e),
             $e instanceof LastAdminProtectionException => $this->renderLastAdminProtectionException($e),
 
-            // 共通アプリケーション例外
-            $e instanceof ApplicationException => $this->renderApplicationException($e),
-
             // Laravel バリデーション例外
             $e instanceof ValidationException => $this->renderValidationException($e),
 
@@ -133,7 +116,7 @@ class Handler extends ExceptionHandler
             $e instanceof TooManyRequestsHttpException => $this->renderTooManyRequestsException($e),
 
             // その他の HTTP 例外
-            $e instanceof HttpException => $this->renderHttpException($e),
+            $e instanceof HttpExceptionInterface => $this->renderHttpException($e),
 
             // その他（システムエラー）
             default => $this->renderInternalServerError($e),
@@ -214,29 +197,6 @@ class Handler extends ExceptionHandler
         ], 422);
     }
 
-    /**
-     * アプリケーション例外のレスポンス
-     */
-    private function renderApplicationException(ApplicationException $e): JsonResponse
-    {
-        $data = [
-            'error' => [
-                'code' => $e->getErrorCode(),
-                'message' => $e->getUserMessage(),
-            ],
-        ];
-
-        $details = $e->getDetails();
-        if (! empty($details)) {
-            $data['error']['details'] = $details;
-        }
-
-        if (config('app.debug')) {
-            $data['error']['debug'] = $this->getDebugInfo($e);
-        }
-
-        return response()->json($data, $e->getHttpStatusCode());
-    }
 
     /**
      * バリデーション例外のレスポンス
@@ -278,10 +238,12 @@ class Handler extends ExceptionHandler
 
     /**
      * モデル未発見例外のレスポンス
+     *
+     * @param ModelNotFoundException<\Illuminate\Database\Eloquent\Model> $e
      */
     private function renderModelNotFoundException(ModelNotFoundException $e): JsonResponse
     {
-        $model = class_basename($e->getModel());
+        $model = $e->getModel() ? class_basename($e->getModel()) : 'Unknown';
 
         return response()->json([
             'error' => [
@@ -329,7 +291,7 @@ class Handler extends ExceptionHandler
     /**
      * HTTP 例外のレスポンス
      */
-    private function renderHttpException(HttpException $e): JsonResponse
+    protected function renderHttpException(HttpExceptionInterface $e): JsonResponse
     {
         $statusCode = $e->getStatusCode();
         $code = $this->getErrorCodeFromStatusCode($statusCode);
@@ -379,7 +341,7 @@ class Handler extends ExceptionHandler
                     fn ($frame) => [
                         'file' => $frame['file'] ?? 'unknown',
                         'line' => $frame['line'] ?? 0,
-                        'function' => $frame['function'] ?? 'unknown',
+                        'function' => $frame['function'],
                         'class' => $frame['class'] ?? null,
                     ],
                     $e->getTrace()

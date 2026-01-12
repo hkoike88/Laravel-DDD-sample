@@ -41,72 +41,88 @@ class BookSeeder extends Seeder
 
         $this->command->info('蔵書データを投入中...');
 
-        $inserted = 0;
-        $skipped = 0;
+        $handle = $this->openCsvFile($csvPath);
+        if ($handle === null) {
+            return;
+        }
 
-        // 既存のISBNを取得（重複チェック用）
-        $existingIsbns = BookRecord::whereNotNull('isbn')
-            ->pluck('isbn')
-            ->flip()
-            ->toArray();
+        $headers = $this->readHeaders($handle);
+        if ($headers === null) {
+            fclose($handle);
 
-        // CSVファイルを読み込み
+            return;
+        }
+
+        $result = $this->importData($handle, $headers);
+        fclose($handle);
+
+        $this->outputResult($result['inserted'], $result['skipped']);
+    }
+
+    /**
+     * CSVファイルを開く
+     *
+     * @return resource|null ファイルハンドル（失敗時はnull）
+     */
+    private function openCsvFile(string $csvPath)
+    {
         $handle = fopen($csvPath, 'r');
         if ($handle === false) {
             $this->command->error("CSVファイルを開けません: {$csvPath}");
 
-            return;
+            return null;
         }
 
-        // ヘッダー行を読み飛ばし
+        return $handle;
+    }
+
+    /**
+     * ヘッダー行を読み込む
+     *
+     * @param  resource  $handle  ファイルハンドル
+     * @return array<string>|null ヘッダー配列（失敗時はnull）
+     */
+    private function readHeaders($handle): ?array
+    {
         $headers = fgetcsv($handle);
         if ($headers === false) {
-            fclose($handle);
             $this->command->error('CSVファイルのヘッダーが読み込めません');
 
-            return;
+            return null;
         }
 
-        // トランザクション内で投入
+        return $headers;
+    }
+
+    /**
+     * データをインポート
+     *
+     * @param  resource  $handle  ファイルハンドル
+     * @param  array<string>  $headers  ヘッダー配列
+     * @return array{inserted: int, skipped: int} インポート結果
+     */
+    private function importData($handle, array $headers): array
+    {
+        $existingIsbns = $this->getExistingIsbns();
+        $inserted = 0;
+        $skipped = 0;
+
         DB::beginTransaction();
 
         try {
             while (($row = fgetcsv($handle)) !== false) {
-                if (count($row) < 7) {
+                $result = $this->processRow($row, $headers, $existingIsbns);
+
+                if ($result === null) {
                     $skipped++;
 
                     continue;
                 }
 
-                /** @var array<string> $validHeaders */
-                $validHeaders = array_filter($headers, fn ($h): bool => $h !== null);
-                $data = array_combine($validHeaders, $row);
-
-                // ISBNの重複チェック
-                $isbn = $data['isbn'] ?? null;
-                if ($isbn && isset($existingIsbns[$isbn])) {
-                    $skipped++;
-
-                    continue;
+                $this->createBook($result['data']);
+                if ($result['isbn']) {
+                    $existingIsbns[$result['isbn']] = true;
                 }
-
-                // レコードを作成
-                BookRecord::create([
-                    'id' => (string) new Ulid,
-                    'title' => $data['title'],
-                    'author' => $data['author'] ?: null,
-                    'isbn' => $isbn ?: null,
-                    'publisher' => $data['publisher'] ?: null,
-                    'published_year' => $data['published_year'] ? (int) $data['published_year'] : null,
-                    'genre' => $data['genre'] ?: null,
-                    'status' => $data['status'] ?: 'available',
-                ]);
-
-                // 投入したISBNを記録（重複防止）
-                if ($isbn) {
-                    $existingIsbns[$isbn] = true;
-                }
-
                 $inserted++;
             }
 
@@ -115,10 +131,79 @@ class BookSeeder extends Seeder
             DB::rollBack();
             Log::error('BookSeeder failed: '.$e->getMessage());
             throw $e;
-        } finally {
-            fclose($handle);
         }
 
+        return ['inserted' => $inserted, 'skipped' => $skipped];
+    }
+
+    /**
+     * 既存ISBNリストを取得
+     *
+     * @return array<string, bool>
+     */
+    private function getExistingIsbns(): array
+    {
+        return BookRecord::whereNotNull('isbn')
+            ->pluck('isbn')
+            ->flip()
+            ->toArray();
+    }
+
+    /**
+     * 1行を処理
+     *
+     * @param  array<int, string|null>  $row  CSV行データ
+     * @param  array<string>  $headers  ヘッダー配列
+     * @param  array<string, bool>  $existingIsbns  既存ISBN
+     * @return array{data: array<string, mixed>, isbn: string|null}|null 処理結果（スキップ時はnull）
+     */
+    private function processRow(array $row, array $headers, array $existingIsbns): ?array
+    {
+        if (count($row) < 7) {
+            return null;
+        }
+
+        /** @var array<string> $validHeaders */
+        $validHeaders = array_filter($headers, fn ($h): bool => $h !== null);
+        $data = array_combine($validHeaders, $row);
+
+        $isbn = $data['isbn'] ?? null;
+        if ($isbn && isset($existingIsbns[$isbn])) {
+            return null;
+        }
+
+        return [
+            'data' => $data,
+            'isbn' => $isbn,
+        ];
+    }
+
+    /**
+     * 蔵書レコードを作成
+     *
+     * @param  array<string, string|null>  $data  データ配列
+     */
+    private function createBook(array $data): void
+    {
+        $isbn = $data['isbn'] ?? null;
+
+        BookRecord::create([
+            'id' => (string) new Ulid,
+            'title' => $data['title'],
+            'author' => $data['author'] ?: null,
+            'isbn' => $isbn ?: null,
+            'publisher' => $data['publisher'] ?: null,
+            'published_year' => $data['published_year'] ? (int) $data['published_year'] : null,
+            'genre' => $data['genre'] ?: null,
+            'status' => $data['status'] ?: 'available',
+        ]);
+    }
+
+    /**
+     * 結果を出力
+     */
+    private function outputResult(int $inserted, int $skipped): void
+    {
         $this->command->info("{$inserted}件の蔵書データを投入しました。");
         if ($skipped > 0) {
             $this->command->info("{$skipped}件をスキップしました（重複ISBNまたは不正行）。");

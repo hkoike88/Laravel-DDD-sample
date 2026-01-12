@@ -64,36 +64,77 @@ class ImportBooksCommand extends Command
         $isDryRun = $this->option('dry-run');
         $skipDuplicates = ! $this->option('no-skip-duplicates');
 
-        // ファイルの存在確認
-        if (! file_exists($filePath)) {
-            $this->error("ファイルが見つかりません: {$filePath}");
+        $handle = $this->openCsvFile($filePath);
+        if ($handle === null) {
+            return Command::FAILURE;
+        }
+
+        $headers = $this->readHeaders($handle);
+        if ($headers === null) {
+            fclose($handle);
 
             return Command::FAILURE;
         }
 
-        // ファイルを開く
+        $result = $this->processRows($handle, $headers, $isDryRun, $skipDuplicates);
+        fclose($handle);
+
+        $this->outputReport($filePath, $result['totalRows'], $result['successCount'], $isDryRun);
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * CSVファイルを開く
+     *
+     * @return resource|null ファイルハンドル（失敗時はnull）
+     */
+    private function openCsvFile(string $filePath)
+    {
+        if (! file_exists($filePath)) {
+            $this->error("ファイルが見つかりません: {$filePath}");
+
+            return null;
+        }
+
         $handle = fopen($filePath, 'r');
         if ($handle === false) {
             $this->error("ファイルを開けません: {$filePath}");
 
-            return Command::FAILURE;
+            return null;
         }
 
-        // ヘッダー行を読み込み
+        return $handle;
+    }
+
+    /**
+     * ヘッダー行を読み込む
+     *
+     * @param  resource  $handle  ファイルハンドル
+     * @return array<string>|null ヘッダー配列（失敗時はnull）
+     */
+    private function readHeaders($handle): ?array
+    {
         $headers = fgetcsv($handle);
         if ($headers === false) {
-            fclose($handle);
             $this->error('CSVファイルのヘッダーが読み込めません');
 
-            return Command::FAILURE;
+            return null;
         }
 
-        // 既存ISBNを取得
-        $existingIsbns = BookRecord::whereNotNull('isbn')
-            ->pluck('isbn')
-            ->flip()
-            ->toArray();
+        return $headers;
+    }
 
+    /**
+     * CSVの全行を処理
+     *
+     * @param  resource  $handle  ファイルハンドル
+     * @param  array<string>  $headers  ヘッダー配列
+     * @return array{totalRows: int, successCount: int} 処理結果
+     */
+    private function processRows($handle, array $headers, bool $isDryRun, bool $skipDuplicates): array
+    {
+        $existingIsbns = $this->getExistingIsbns();
         $totalRows = 0;
         $successCount = 0;
         $batchData = [];
@@ -105,61 +146,140 @@ class ImportBooksCommand extends Command
             $lineNumber++;
             $totalRows++;
 
-            // 行データが不足している場合
-            if (count($row) < count($headers)) {
-                $this->addSkippedRow($lineNumber, '不正な行形式', '');
-
+            $processedData = $this->processRow($row, $headers, $lineNumber, $existingIsbns, $skipDuplicates);
+            if ($processedData === null) {
                 continue;
             }
 
-            /** @var array<string> $validHeaders */
-            $validHeaders = array_filter($headers, fn ($h): bool => $h !== null);
-            $data = array_combine($validHeaders, $row);
-            /** @var array<string, string> $stringData */
-            $stringData = array_map(fn ($v): string => (string) $v, $data);
-
-            // バリデーション
-            $validationResult = $this->validateRow($stringData, $lineNumber, $existingIsbns, $skipDuplicates);
-            if ($validationResult !== null) {
-                $this->addSkippedRow($lineNumber, $validationResult['reason'], $validationResult['value']);
-
-                continue;
+            $batchData[] = $processedData['record'];
+            if ($processedData['isbn']) {
+                $existingIsbns[$processedData['isbn']] = true;
             }
 
-            // バッチデータに追加
-            $isbn = $stringData['isbn'] ?? '';
-            $batchData[] = [
-                'id' => (string) new Ulid,
-                'title' => $stringData['title'],
-                'author' => $stringData['author'] ?: null,
-                'isbn' => $isbn ?: null,
-                'publisher' => $stringData['publisher'] ?: null,
-                'published_year' => $stringData['published_year'] ? (int) $stringData['published_year'] : null,
-                'genre' => $stringData['genre'] ?: null,
-                'status' => $stringData['status'] ?: 'available',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
-
-            // ISBNを既存リストに追加
-            if ($isbn) {
-                $existingIsbns[$isbn] = true;
-            }
-
-            // バッチサイズに達したらインサート
-            if (count($batchData) >= self::BATCH_SIZE) {
-                if (! $isDryRun) {
-                    $this->insertBatch($batchData);
-                }
-                $successCount += count($batchData);
-                $batchData = [];
-
-                // 進捗表示
-                $this->output->write("\r  処理済: {$successCount}件");
-            }
+            $successCount = $this->flushBatchIfNeeded($batchData, $successCount, $isDryRun);
         }
 
-        // 残りのバッチをインサート
+        $successCount = $this->flushRemainingBatch($batchData, $successCount, $isDryRun);
+        $this->newLine();
+
+        return ['totalRows' => $totalRows, 'successCount' => $successCount];
+    }
+
+    /**
+     * 既存ISBNリストを取得
+     *
+     * @return array<string, bool>
+     */
+    private function getExistingIsbns(): array
+    {
+        return BookRecord::whereNotNull('isbn')
+            ->pluck('isbn')
+            ->flip()
+            ->toArray();
+    }
+
+    /**
+     * 1行を処理
+     *
+     * @param  array<int, string|null>  $row  CSV行データ
+     * @param  array<string>  $headers  ヘッダー配列
+     * @param  array<string, bool>  $existingIsbns  既存ISBN
+     * @return array{record: array<string, mixed>, isbn: string}|null レコードデータ（スキップ時はnull）
+     */
+    private function processRow(array $row, array $headers, int $lineNumber, array $existingIsbns, bool $skipDuplicates): ?array
+    {
+        if (count($row) < count($headers)) {
+            $this->addSkippedRow($lineNumber, '不正な行形式', '');
+
+            return null;
+        }
+
+        $stringData = $this->convertRowToData($row, $headers);
+
+        $validationResult = $this->validateRow($stringData, $lineNumber, $existingIsbns, $skipDuplicates);
+        if ($validationResult !== null) {
+            $this->addSkippedRow($lineNumber, $validationResult['reason'], $validationResult['value']);
+
+            return null;
+        }
+
+        $isbn = $stringData['isbn'] ?? '';
+
+        return [
+            'record' => $this->createRecord($stringData),
+            'isbn' => $isbn,
+        ];
+    }
+
+    /**
+     * CSV行をデータ配列に変換
+     *
+     * @param  array<int, string|null>  $row  CSV行データ
+     * @param  array<string>  $headers  ヘッダー配列
+     * @return array<string, string>
+     */
+    private function convertRowToData(array $row, array $headers): array
+    {
+        /** @var array<string> $validHeaders */
+        $validHeaders = array_filter($headers, fn ($h): bool => $h !== null);
+        $data = array_combine($validHeaders, $row);
+
+        /** @var array<string, string> $stringData */
+        $stringData = array_map(fn ($v): string => (string) $v, $data);
+
+        return $stringData;
+    }
+
+    /**
+     * レコードデータを作成
+     *
+     * @param  array<string, string>  $data  行データ
+     * @return array<string, mixed>
+     */
+    private function createRecord(array $data): array
+    {
+        $isbn = $data['isbn'] ?? '';
+
+        return [
+            'id' => (string) new Ulid,
+            'title' => $data['title'],
+            'author' => $data['author'] ?: null,
+            'isbn' => $isbn ?: null,
+            'publisher' => $data['publisher'] ?: null,
+            'published_year' => $data['published_year'] ? (int) $data['published_year'] : null,
+            'genre' => $data['genre'] ?: null,
+            'status' => $data['status'] ?: 'available',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+    }
+
+    /**
+     * バッチサイズに達していればフラッシュ
+     *
+     * @param  array<array<string, mixed>>  $batchData  バッチデータ（参照渡し）
+     */
+    private function flushBatchIfNeeded(array &$batchData, int $successCount, bool $isDryRun): int
+    {
+        if (count($batchData) >= self::BATCH_SIZE) {
+            if (! $isDryRun) {
+                $this->insertBatch($batchData);
+            }
+            $successCount += count($batchData);
+            $batchData = [];
+            $this->output->write("\r  処理済: {$successCount}件");
+        }
+
+        return $successCount;
+    }
+
+    /**
+     * 残りのバッチをフラッシュ
+     *
+     * @param  array<array<string, mixed>>  $batchData  バッチデータ
+     */
+    private function flushRemainingBatch(array $batchData, int $successCount, bool $isDryRun): int
+    {
         if (! empty($batchData)) {
             if (! $isDryRun) {
                 $this->insertBatch($batchData);
@@ -167,15 +287,7 @@ class ImportBooksCommand extends Command
             $successCount += count($batchData);
         }
 
-        fclose($handle);
-
-        // 改行
-        $this->newLine();
-
-        // 結果レポート出力
-        $this->outputReport($filePath, $totalRows, $successCount, $isDryRun);
-
-        return Command::SUCCESS;
+        return $successCount;
     }
 
     /**
@@ -189,60 +301,109 @@ class ImportBooksCommand extends Command
      */
     private function validateRow(array $data, int $lineNumber, array $existingIsbns, bool $skipDuplicates): ?array
     {
-        // タイトル必須
+        return $this->validateTitle($data)
+            ?? $this->validateAuthor($data)
+            ?? $this->validateIsbn($data, $existingIsbns, $skipDuplicates)
+            ?? $this->validatePublishedYear($data)
+            ?? $this->validateStatus($data);
+    }
+
+    /**
+     * タイトルをバリデーション
+     *
+     * @param  array<string, string>  $data  行データ
+     * @return array{reason: string, value: string}|null
+     */
+    private function validateTitle(array $data): ?array
+    {
         if (empty($data['title'])) {
             return ['reason' => 'タイトル未入力', 'value' => ''];
         }
 
-        // タイトル長さ
         if (mb_strlen($data['title']) > 255) {
             return ['reason' => 'タイトルが長すぎます', 'value' => mb_substr($data['title'], 0, 20).'...'];
         }
 
-        // 著者長さ
+        return null;
+    }
+
+    /**
+     * 著者をバリデーション
+     *
+     * @param  array<string, string>  $data  行データ
+     * @return array{reason: string, value: string}|null
+     */
+    private function validateAuthor(array $data): ?array
+    {
         if (! empty($data['author']) && mb_strlen($data['author']) > 255) {
             return ['reason' => '著者名が長すぎます', 'value' => mb_substr($data['author'], 0, 20).'...'];
         }
 
-        // ISBN検証
+        return null;
+    }
+
+    /**
+     * ISBNをバリデーション
+     *
+     * @param  array<string, string>  $data  行データ
+     * @param  array<string, bool>  $existingIsbns  既存ISBN
+     * @return array{reason: string, value: string}|null
+     */
+    private function validateIsbn(array $data, array $existingIsbns, bool $skipDuplicates): ?array
+    {
         $isbnRaw = $data['isbn'] ?? '';
-        if ($isbnRaw !== '') {
-            // ハイフンを除去
-            $isbn = preg_replace('/[^0-9]/', '', $isbnRaw);
-            if ($isbn === null) {
-                return ['reason' => 'ISBN形式エラー', 'value' => $isbnRaw];
-            }
-
-            // 13桁かチェック
-            if (strlen($isbn) !== 13) {
-                return ['reason' => 'ISBN形式エラー（13桁必要）', 'value' => $isbnRaw];
-            }
-
-            // チェックディジット検証
-            if (! $this->validateIsbn13CheckDigit($isbn)) {
-                return ['reason' => 'ISBN形式エラー', 'value' => $isbn];
-            }
-
-            // 重複チェック
-            if (isset($existingIsbns[$isbn])) {
-                if ($skipDuplicates) {
-                    return ['reason' => '重複ISBN', 'value' => $isbn];
-                }
-
-                return ['reason' => '重複ISBN（エラー）', 'value' => $isbn];
-            }
+        if ($isbnRaw === '') {
+            return null;
         }
 
-        // 出版年検証
-        if (! empty($data['published_year'])) {
-            $year = (int) $data['published_year'];
-            $currentYear = (int) date('Y');
-            if ($year < -2000 || $year > $currentYear) {
-                return ['reason' => '無効な出版年', 'value' => $data['published_year']];
-            }
+        $isbn = preg_replace('/[^0-9]/', '', $isbnRaw);
+        if ($isbn === null || strlen($isbn) !== 13) {
+            return ['reason' => 'ISBN形式エラー（13桁必要）', 'value' => $isbnRaw];
         }
 
-        // ステータス検証
+        if (! $this->validateIsbn13CheckDigit($isbn)) {
+            return ['reason' => 'ISBN形式エラー', 'value' => $isbn];
+        }
+
+        if (isset($existingIsbns[$isbn])) {
+            $reason = $skipDuplicates ? '重複ISBN' : '重複ISBN（エラー）';
+
+            return ['reason' => $reason, 'value' => $isbn];
+        }
+
+        return null;
+    }
+
+    /**
+     * 出版年をバリデーション
+     *
+     * @param  array<string, string>  $data  行データ
+     * @return array{reason: string, value: string}|null
+     */
+    private function validatePublishedYear(array $data): ?array
+    {
+        if (empty($data['published_year'])) {
+            return null;
+        }
+
+        $year = (int) $data['published_year'];
+        $currentYear = (int) date('Y');
+
+        if ($year < -2000 || $year > $currentYear) {
+            return ['reason' => '無効な出版年', 'value' => $data['published_year']];
+        }
+
+        return null;
+    }
+
+    /**
+     * ステータスをバリデーション
+     *
+     * @param  array<string, string>  $data  行データ
+     * @return array{reason: string, value: string}|null
+     */
+    private function validateStatus(array $data): ?array
+    {
         if (! empty($data['status']) && ! in_array($data['status'], self::VALID_STATUSES, true)) {
             return ['reason' => '無効な状態値', 'value' => $data['status']];
         }

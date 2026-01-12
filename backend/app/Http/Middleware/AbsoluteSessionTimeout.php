@@ -36,40 +36,82 @@ class AbsoluteSessionTimeout
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // 認証済みユーザーかつセッションが利用可能な場合のみチェック
-        if (Auth::check() && $request->hasSession()) {
-            /** @var int|null $sessionCreatedAt */
-            $sessionCreatedAt = $request->session()->get(self::SESSION_CREATED_AT_KEY);
+        if (! $this->shouldCheck($request)) {
+            return $next($request);
+        }
 
-            if ($sessionCreatedAt !== null) {
-                $elapsedSeconds = time() - $sessionCreatedAt;
-
-                if ($elapsedSeconds >= self::ABSOLUTE_TIMEOUT_SECONDS) {
-                    // セキュリティログ: セッションタイムアウト
-                    $user = Auth::user();
-                    if ($user !== null) {
-                        /** @var string $staffId */
-                        $staffId = $user->getAuthIdentifier();
-                        SecurityLogger::sessionTimeout(
-                            staffId: $staffId,
-                            sessionId: $request->session()->getId(),
-                            timeoutType: 'absolute'
-                        );
-                    }
-
-                    // セッションを無効化してログアウト
-                    Auth::logout();
-                    $request->session()->invalidate();
-                    $request->session()->regenerateToken();
-
-                    return response()->json([
-                        'message' => 'セッションがタイムアウトしました。再度ログインしてください',
-                    ], Response::HTTP_UNAUTHORIZED);
-                }
-            }
+        if ($this->isSessionExpired($request)) {
+            return $this->handleExpiredSession($request);
         }
 
         return $next($request);
+    }
+
+    /**
+     * タイムアウトチェックが必要かどうか
+     */
+    private function shouldCheck(Request $request): bool
+    {
+        return Auth::check() && $request->hasSession();
+    }
+
+    /**
+     * セッションが期限切れかどうか
+     */
+    private function isSessionExpired(Request $request): bool
+    {
+        /** @var int|null $sessionCreatedAt */
+        $sessionCreatedAt = $request->session()->get(self::SESSION_CREATED_AT_KEY);
+
+        if ($sessionCreatedAt === null) {
+            return false;
+        }
+
+        $elapsedSeconds = time() - $sessionCreatedAt;
+
+        return $elapsedSeconds >= self::ABSOLUTE_TIMEOUT_SECONDS;
+    }
+
+    /**
+     * 期限切れセッションを処理
+     */
+    private function handleExpiredSession(Request $request): Response
+    {
+        $this->logSessionTimeout($request);
+        $this->terminateSession($request);
+
+        return response()->json([
+            'message' => 'セッションがタイムアウトしました。再度ログインしてください',
+        ], Response::HTTP_UNAUTHORIZED);
+    }
+
+    /**
+     * セッションタイムアウトをログに記録
+     */
+    private function logSessionTimeout(Request $request): void
+    {
+        $user = Auth::user();
+        if ($user === null) {
+            return;
+        }
+
+        /** @var string $staffId */
+        $staffId = $user->getAuthIdentifier();
+        SecurityLogger::sessionTimeout(
+            staffId: $staffId,
+            sessionId: $request->session()->getId(),
+            timeoutType: 'absolute'
+        );
+    }
+
+    /**
+     * セッションを終了
+     */
+    private function terminateSession(Request $request): void
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
     }
 
     /**
