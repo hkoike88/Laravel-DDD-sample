@@ -68,6 +68,18 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
+# Composer Audit (セキュリティスキャン)
+echo -n "  Composer Audit: "
+AUDIT_OUTPUT=$($DOCKER_COMPOSE exec -T backend composer audit --format=json 2>&1 || true)
+if echo "$AUDIT_OUTPUT" | grep -qE '"severity":\s*"(critical|high)"' 2>/dev/null; then
+    echo -e "${RED}FAILED${NC}"
+    echo -e "${YELLOW}  Critical または High の脆弱性が見つかりました${NC}"
+    echo "$AUDIT_OUTPUT" | $DOCKER_COMPOSE exec -T backend sh -c 'cat' 2>&1 || true
+    ERRORS=$((ERRORS + 1))
+else
+    echo -e "${GREEN}OK${NC}"
+fi
+
 # ----------------------------------------
 # Frontend チェック
 # ----------------------------------------
@@ -100,6 +112,20 @@ if $DOCKER_COMPOSE exec -T frontend npm run typecheck 2>&1; then
 else
     echo -e "${RED}FAILED${NC}"
     ERRORS=$((ERRORS + 1))
+fi
+
+# npm Audit (セキュリティスキャン)
+echo -n "  npm Audit: "
+AUDIT_JSON=$($DOCKER_COMPOSE exec -T frontend npm audit --json 2>&1 || true)
+CRITICAL=$(echo "$AUDIT_JSON" | grep -o '"critical":[0-9]*' | grep -o '[0-9]*' || echo "0")
+HIGH=$(echo "$AUDIT_JSON" | grep -o '"high":[0-9]*' | grep -o '[0-9]*' || echo "0")
+if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+    echo -e "${RED}FAILED${NC}"
+    echo -e "${YELLOW}  Critical ($CRITICAL) または High ($HIGH) の脆弱性が見つかりました${NC}"
+    $DOCKER_COMPOSE exec -T frontend npm audit 2>&1 || true
+    ERRORS=$((ERRORS + 1))
+else
+    echo -e "${GREEN}OK${NC}"
 fi
 
 # ----------------------------------------
