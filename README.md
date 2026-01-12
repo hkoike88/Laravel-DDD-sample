@@ -254,6 +254,19 @@ feature/xxx (機能開発)
 
 ※ フックを有効化するには `git config core.hooksPath .githooks` を実行してください
 
+### Claude によるコードレビュー
+
+main ブランチへのプルリクエスト作成時に、**Claude が自動的にコードレビュー**を実行します。
+
+**レビュー観点**:
+- コーディング規約（PSR-12, TypeScript/React）
+- セキュリティ（SQL インジェクション, XSS, CSRF）
+- アーキテクチャ（DDD 原則, レイヤー分離）
+- パフォーマンス（N+1 問題, メモリリーク）
+- テスト、ドキュメント
+
+**セットアップ**: [.github/CLAUDE_REVIEW_SETUP.md](./.github/CLAUDE_REVIEW_SETUP.md) を参照してください
+
 ---
 
 ## アクセス
