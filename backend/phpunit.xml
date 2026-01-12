@@ -15,8 +15,19 @@
     <source>
         <include>
             <directory>app</directory>
+            <directory>packages</directory>
         </include>
+        <exclude>
+            <directory>packages/*/Infrastructure/EloquentModels</directory>
+            <directory>packages/*/Presentation/HTTP/Resources</directory>
+        </exclude>
     </source>
+    <coverage>
+        <report>
+            <html outputDirectory="build/coverage"/>
+            <text outputFile="php://stdout" showUncoveredFiles="false"/>
+        </report>
+    </coverage>
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>

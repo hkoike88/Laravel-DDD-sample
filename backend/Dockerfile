@@ -18,7 +18,10 @@ RUN apk add --no-cache \
     oniguruma-dev \
     libxml2-dev \
     icu-dev \
-    linux-headers
+    linux-headers \
+    autoconf \
+    g++ \
+    make
 
 # PHP 拡張のインストール
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -32,6 +35,12 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         gd \
         intl \
         opcache
+
+# PCOV拡張をインストール（テストカバレッジ用）
+RUN pecl install pcov && docker-php-ext-enable pcov
+
+# PCOV設定（packages ディレクトリを含む全体をカバレッジ対象にする）
+RUN echo "pcov.directory=/var/www/html" > /usr/local/etc/php/conf.d/pcov.ini
 
 # Composer のインストール
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

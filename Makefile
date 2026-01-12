@@ -2,7 +2,7 @@
 # プロジェクト Makefile
 # ============================================
 
-.PHONY: help up down restart logs shell test lint seed seed-books import-books generate-books migrate fresh security security-backend security-frontend security-audit phpstan phpmd phpmd-report metrics
+.PHONY: help up down restart logs shell test lint seed seed-books import-books generate-books migrate fresh security security-backend security-frontend security-audit phpstan phpmd phpmd-report metrics coverage coverage-html coverage-report
 
 # デフォルトターゲット
 help:
@@ -16,9 +16,12 @@ help:
 	@echo "  make shell     - バックエンドコンテナに入る"
 	@echo ""
 	@echo "=== テスト・Lint ==="
-	@echo "  make test      - 全テストを実行"
-	@echo "  make lint      - コードスタイルを修正"
-	@echo "  make lint-check - コードスタイルをチェック（修正なし）"
+	@echo "  make test           - 全テストを実行"
+	@echo "  make coverage       - テストカバレッジを表示（ターミナル）"
+	@echo "  make coverage-html  - テストカバレッジをHTML形式で生成"
+	@echo "  make coverage-report - テストカバレッジを詳細表示（最低80%）"
+	@echo "  make lint           - コードスタイルを修正"
+	@echo "  make lint-check     - コードスタイルをチェック（修正なし）"
 	@echo ""
 	@echo "=== セキュリティスキャン ==="
 	@echo "  make security          - 全セキュリティスキャンを実行"
@@ -68,6 +71,33 @@ shell:
 
 test:
 	docker compose exec backend sh -c "cd /var/www/html && ./vendor/bin/pest"
+
+# テストカバレッジ（ターミナル表示）
+coverage:
+	docker compose exec backend sh -c "cd /var/www/html && php artisan test --coverage"
+
+# テストカバレッジ（HTML形式で生成）
+coverage-html:
+	@echo ""
+	@echo "========================================"
+	@echo "テストカバレッジ HTML生成"
+	@echo "========================================"
+	@echo ""
+	@docker compose exec backend sh -c "cd /var/www/html && php artisan test --coverage-html=build/coverage"
+	@echo ""
+	@echo "========================================"
+	@echo "レポートが生成されました"
+	@echo "場所: backend/build/coverage/index.html"
+	@echo "========================================"
+
+# テストカバレッジ（詳細表示、最低80%要求）
+coverage-report:
+	@echo ""
+	@echo "========================================"
+	@echo "テストカバレッジ 詳細レポート"
+	@echo "========================================"
+	@echo ""
+	@docker compose exec backend sh -c "cd /var/www/html && ./vendor/bin/pest --coverage --min=80"
 
 lint:
 	docker compose exec backend sh -c "cd /var/www/html && ./vendor/bin/pint"
