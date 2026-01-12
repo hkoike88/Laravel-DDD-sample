@@ -76,7 +76,7 @@ jobs:
           fi
 
           # レビュープロンプトを jq で安全に構築（シェルインジェクション対策）
-          echo "🤖 Claude API を呼び出し中..."
+          # プロンプトはログに出力しない（機密情報保護）
           PROMPT=$(jq -n \
             --arg title "${{ github.event.pull_request.title }}" \
             --arg body "${{ github.event.pull_request.body }}" \
@@ -113,6 +113,8 @@ jobs:
             "### 📝 その他\n" +
             "- [その他の気づき]"
           ')
+
+          echo "🤖 Claude API を呼び出し中..."
 
           # Claude API を呼び出し (Claude 4.5 Sonnet - 2026年1月時点の最新)
           RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
