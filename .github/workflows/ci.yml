@@ -64,14 +64,23 @@ jobs:
           key: ${{ runner.os }}-composer-${{ hashFiles('backend/composer.lock') }}
           restore-keys: ${{ runner.os }}-composer-
 
+      - name: Create cache directories
+        run: |
+          mkdir -p bootstrap/cache
+          chmod -R 775 bootstrap/cache
+          mkdir -p storage/framework/{sessions,views,cache}
+          chmod -R 775 storage
+
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Copy .env
-        run: cp .env.testing .env
+      - name: Setup .env
+        run: |
+          cp .env.testing.example .env.testing
+          cp .env.testing .env
 
       - name: Generate application key
-        run: php artisan key:generate
+        run: php artisan key:generate --env=testing
 
       - name: PHPStan
         run: ./vendor/bin/phpstan analyse --memory-limit=512M --no-progress
